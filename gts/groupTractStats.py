@@ -24,7 +24,6 @@ from gtsutils import exec_cmd
 import gtstractography as gtracts
 
 from vtk import *
-import tractconverter
 from dtproc import *
 
 
@@ -69,7 +68,8 @@ class GroupTractStats:
             name=args[0]
             args = args[1:]
         for i in args:
-            name+='_'+i
+            if i.strip():
+                name+='_'+i
         if affix:
             name += c.imgext
 
@@ -134,11 +134,36 @@ class GroupTractStats:
         affix = c.affix
         T1_processed_path = c.T1_processed_path
         processed_path = c.processed_path
-        rois= c.rois
+        rois= c.template_rois
         ind_roi_path = c.ind_roi_path
 
         self.projectImageT1ToDwi(ind_roi_path, rois, reference='dwi')
         self.projectImageT1ToDwi(ind_roi_path, rois, reference='t1')
+
+        for subj in c.subjects:
+            fspath = c.subject_freesurfer_path+'/'+subj+'/mri'
+            fs_t1_file = c.preprocessed_path +'/'+ self.getGtsFilename(False,True,subj,'fs','T1')
+            fs_aseg_file = c.preprocessed_path +'/'+ self.getGtsFilename(False,True,subj,'fs','aseg')
+            fs2fsl_mat = c.preprocessed_path +'/'+ self.getGtsFilename(False,False,subj,'fs','fs2fsl','mat.txt')
+            subj_aseg = c.preprocessed_path +'/'+ self.getGtsFilename(False,True,subj,'aseg')
+            subj_t1 = c.orig_path+'/'+self.getGtsFilename(False,True,subj,'T1')
+            dwi_aseg = c.preprocessed_path+'/'+self.getGtsFilename(False, True, subj, 'aseg', 'dwi')
+
+            print '#',fs2fsl_mat
+            if not os.path.isfile(fs2fsl_mat):
+                cmd = 'mri_convert %s/T1.mgz %s' % (fspath, fs_t1_file)
+                exec_cmd(cmd)
+
+                cmd = 'mri_convert %s/aparc+aseg.mgz %s' % (fspath, fs_aseg_file)
+                exec_cmd(cmd)            
+
+                cmd = 'flirt -in %s -ref %s -omat %s' % (fs_t1_file, subj_t1, fs2fsl_mat)
+                exec_cmd(cmd)
+
+                cmd = 'flirt -in %s -ref %s -interp nearestneighbour -applyxfm -init %s -out %s' % (fs_aseg_file, subj_t1, fs2fsl_mat, subj_aseg)
+                exec_cmd(cmd)    
+
+            self.ants_apply_transform_t1_to_dwi(subj, subj_aseg, dwi_aseg, auto_naming=False)
 
 
     def projectImageT1ToDwi(self, input_path, name_base, output_path='', **kwargs):
@@ -179,7 +204,7 @@ class GroupTractStats:
                 #print 'copy %s to %s' %( output, dir_roi )
                 #shutil.copyfile(output, dir_roi)
 
-    def ants_apply_transform_t1_to_dwi(self, subj, input, output, inverse=False, reference='dwi', interp='NearestNeighbor', just_transform_param=False):
+    def ants_apply_transform_t1_to_dwi(self, subj, input, output, inverse=False, reference='dwi', interp='NearestNeighbor', just_transform_param=False, auto_naming=True):
 
         c = self.config
         orig_path = c.orig_path
@@ -195,7 +220,8 @@ class GroupTractStats:
         if reference=='t1':
             ref = '%s_T1.nii.gz' % subj
         
-        output = output+'_'+reference+imgext
+        if auto_naming:
+            output = output+'_'+reference+imgext
         print '######t1_to_dwi#######',output
 
         ref = orig_path+'/'+ref            
@@ -360,7 +386,7 @@ class GroupTractStats:
         exec_cmd(cmd)
 
 
-    def seedIndividualTracts(self, labels=[1],recompute=False,overwrite=False):
+    def seedIndividualTracts(self, labels=[1],recompute=False,overwrite=False, reorganize_paths=False):
         c = self.config
         origin=os.getcwd()
         dwi_path = c.dwi_base_path
@@ -371,7 +397,7 @@ class GroupTractStats:
         affix = c.affix
         T1_processed_path = c.T1_processed_path
         processed_path = c.processed_path
-        rois= c.rois
+        rois= c.template_rois
         ind_roi_path = c.ind_roi_path        
         tractography_path = c.tractography_path_full
 
@@ -448,12 +474,17 @@ class GroupTractStats:
             t1o = t1i
             shutil.copyfile(orig_path+'/'+t1i, subjdir+'/'+t1o)            
 
+            # copy freesurfer segmentation to tractography folder
+            dwi_aseg = self.getGtsFilename(False, True, subj, 'aseg', 'dwi')
+            shutil.copyfile(c.preprocessed_path+'/'+dwi_aseg, subjdir+'/'+dwi_aseg)             
+
+            # copy t1 projected roi files to individual tractography folder
             for roi in rois:
                 roi_file = self.getDwiRoiName(subj,roi, ref='dwi')
                 roi_nifti = roi_file+imgext
                 shutil.copyfile(processed_path+'/'+roi_nifti, subjdir+'/'+roi_nifti)
 
-                cmd="slicerFileConvert.sh -i %s -o %s" % (roi_nifti, roi_file+'.nhdr');
+                cmd="slicerFileConvert.sh -i %s -o %s > /dev/null " % (roi_nifti, roi_file+'.nhdr');
                 exec_cmd(cmd)                
 
                 roi_file = self.getDwiRoiName(subj,roi, ref='t1')
@@ -478,10 +509,13 @@ class GroupTractStats:
                 label_str = c.roi_labels_str[i]
         
 
-                for itract, iparam in c.tract_method.iteritems():
+                for imethod in c.tract_method:
+                    itract = imethod['method']
+                    iparam = imethod['params']
+                    method_label  = imethod['label']
+
                     if itract == 'mrtrix':
                         print '\n-- PERFORM MRTRIX'
-                        method_name = 'mrtrix'
 
                         if not mrtrix_has_recompute:
                             recompute = True
@@ -489,24 +523,30 @@ class GroupTractStats:
                         else:
                             recompute = False
                         fiber_name = gtracts.tractsMrtrix(subj, roibase, excludebase, ilabel, config=c, label_str=label_str, label_include=c.roi_includes[i], 
-                                     label_exclude=c.roi_excludes[i], recompute=recompute, overwrite=overwrite, params=iparam)
+                                     label_exclude=c.roi_excludes[i], recompute=recompute, overwrite=overwrite, params=iparam, method_label=method_label)
 
                     elif itract == 'xst':
                         print '\n-- PERFORM XST'
-                        method_name = 'xst'
-                        fiber_name = gtracts.tractsXst(subj, ras_corrected_file, roibase, excludebase, ilabel, config=c, label_str=label_str, 
+                        fiber_name = gtracts.tractsXst(subj, roibase, excludebase, ilabel, dwi_file=ras_corrected_file, config=c, label_str=label_str, 
                                   label_include=c.roi_includes[i],label_exclude=c.roi_excludes[i], overwrite=overwrite, params=iparam)
+                    elif itract =='slicer':
+                        print '\n-- PERFORM SLICER'
+                        fiber_name = gtracts.tractsSlicer(subj, roibase, excludebase, ilabel, config=c, label_str=label_str, 
+                                  label_include=c.roi_includes[i],label_exclude=c.roi_excludes[i], overwrite=overwrite, params=iparam)                        
 
-                    if not stream_map.has_key(method_name):
-                            stream_map[method_name] = [fiber_name]
+                    if not stream_map.has_key(method_label):
+                            stream_map[method_label] = [fiber_name]
                     else:
-                        stream_map[method_name].append(fiber_name)
+                        stream_map[method_label].append(fiber_name)
+
+
 
             os.chdir(origin)
         return stream_map
 
     def tracts_to_density(self, tracts_map):
-        c = self.config
+        print '===================== TRACTS TO DENSITY ======================='        
+        c = self.config        
         for subj in c.subjects:
             os.chdir(c.tractography_path+'/'+subj)
             print '========== %s =========' % subj
@@ -516,8 +556,6 @@ class GroupTractStats:
 
             for method in tracts_map.keys():
                 print '== Method %s ' % method
-                if method=='xst':
-                    os.chdir('xst')               
                 tlabels = tracts_map[method]
                 for tfile in tlabels:
                     print tfile
@@ -525,13 +563,13 @@ class GroupTractStats:
                         gtracts.tracts_to_density(ref_file, tfile)
                     else:
                         print 'file %s not found' % tfile
-                if method=='xst':
-                    os.chdir('..')   
+
             os.chdir(c.root)
 
 
 
     def viewTracks(self):
+        print '===================== GENERATER TRACTS BROWSER ======================='           
         import vtk
         c = self.config
         origin=os.getcwd()
@@ -542,20 +580,24 @@ class GroupTractStats:
         affix = c.affix
         T1_processed_path = c.T1_processed_path
         processed_path = c.processed_path
-        rois= c.rois
+        rois= c.template_rois
         ind_roi_path = c.ind_roi_path
         tractography_path = c.tractography_path
 
         for i,label_name in enumerate(c.roi_labels_str):
-            for tmethod in c.tract_method:
+            for imethod in c.tract_method:
                 
-                if tmethod == 'mrtrix':
-                    files = ['cst_%s' % label_name,'cst_%s_filtered' % label_name]
+                tmethod = imethod['method']
+                mlabel = imethod['label']
+
+                if tmethod == 'mrtrix' or tmethod == 'slicer':
+                    fn = '%s_%s' % (mlabel, label_name)
+                    files = [fn,'%s_filtered' % fn]
                 elif tmethod == 'xst':
-                    files = ['xst/%d' % c.roi_labels[i],'xst/%s_filtered' % label_name]
+                    files = ['xst/%s' % label_name,'xst/%s_filtered' % label_name]
 
                 # HTML File output
-                jsfile = 'tracts_%s_%s.js' % (tmethod, label_name)
+                jsfile = 'tracts_%s_%s.js' % (mlabel, label_name)
 
                 htmlfile="""
                 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
@@ -667,13 +709,104 @@ class GroupTractStats:
                     os.chdir(origin)
                 htmlfile+='</body></html>\n'
 
-                FILE = open('tracts_%s_%s.html' % (tmethod, label_name), 'w')
+                FILE = open('tracts_%s_%s.html' % (mlabel, label_name), 'w')
                 FILE.write(htmlfile)
                 FILE.close()
 
                 FILE = open(jsfile, 'w')
                 FILE.write(js)
                 FILE.close()
+
+    def tracts_to_images(self, stream_map):
+        import vtk
+        from dipy.viz.colormap import line_colors
+        from dipy.viz import fvtk
+
+        print '===================== PERFORM tracts_to_images ======================='        
+
+        c = self.config
+        img_path = c.processed_path+'/images'
+        if not os.path.isdir(img_path):
+            os.mkdir(img_path)        
+
+        for subj in c.subjects:
+            os.chdir(c.tractography_path_full+'/'+subj)
+            for method, file_list in stream_map.iteritems():
+                method_path = img_path+'/'+method
+                
+                if not os.path.isdir(method_path):
+                    os.mkdir(method_path)    
+
+                for filename in file_list:
+
+                    reader = vtk.vtkPolyDataReader()
+                    reader.SetFileName(filename)
+                    reader.Update()
+                    polydata = reader.GetOutput()
+
+                    streamlines = []
+                    for i in range(polydata.GetNumberOfCells()):
+                        pts = polydata.GetCell(i).GetPoints()
+                        npts = np.array([pts.GetPoint(i) for i in range(pts.GetNumberOfPoints())])
+                        streamlines.append(npts) 
+                    if len(streamlines) == 0:
+                        print '-- No streamlines for %s' % filename
+                        continue
+
+
+                    ren = fvtk.ren()                    
+                    fvtk.clear(ren)
+                    fvtk.add(ren, fvtk.streamtube(streamlines, line_colors(streamlines)))
+                    ren.SetBackground(0,0,0)
+
+                    #axial 
+                    cam = fvtk.camera(ren, pos=(0,0,-1), focal=(0,0,0), viewup=(0,1,0))                    
+                    imgfile = self.getGtsFilename(False, False, subj, os.path.splitext(filename)[0],'axial.png')
+                    imgout = method_path+'/'+imgfile
+                    print 'Save %s' % imgout
+                    fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
+
+                    ren = fvtk.ren()                    
+                    fvtk.clear(ren)
+                    fvtk.add(ren, fvtk.streamtube(streamlines, line_colors(streamlines)))
+                    ren.SetBackground(0,0,0)
+
+                    cam = fvtk.camera(ren, pos=(0,1,0), focal=(0,0,0), viewup=(0,0,1))                    
+                    imgfile = self.getGtsFilename(False, False, subj, os.path.splitext(filename)[0],'coronal.png')
+                    imgout = method_path+'/'+imgfile
+                    print 'Save %s' % imgout
+                    fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
+
+                    ren = fvtk.ren()                    
+                    fvtk.clear(ren)
+                    fvtk.add(ren, fvtk.streamtube(streamlines, line_colors(streamlines)))
+                    ren.SetBackground(0,0,0)
+
+
+                    cam = fvtk.camera(ren, pos=(-1,0,0), focal=(0,0,0), viewup=(0,0,1))                    
+                    imgfile = self.getGtsFilename(False, False, subj, os.path.splitext(filename)[0],'sag.png')
+                    imgout = method_path+'/'+imgfile
+                    print 'Save %s' % imgout
+                    fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
+
+                    ren = fvtk.ren()                    
+                    fvtk.clear(ren)
+                    fvtk.add(ren, fvtk.streamtube(streamlines, line_colors(streamlines)))
+                    ren.SetBackground(0,0,0)
+
+
+                    cam = fvtk.camera(ren, pos=(-1,1,1), focal=(0,0,0), viewup=(0,0,1))                    
+                    imgfile = self.getGtsFilename(False, False, subj, os.path.splitext(filename)[0],'persp.png')
+                    imgout = method_path+'/'+imgfile
+                    print 'Save %s' % imgout
+                    fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
+
+        os.chdir(c.root)
+                    
+
+
+
+
 
     def tracts_conjunction(self, streamnames, img_type="density"):
         """ Perform conjunction analysis of tracts by reverse project tracts to average T1 template, using density  maps 
@@ -704,28 +837,27 @@ class GroupTractStats:
 
             print '--------------------------- %s ----------------------------------' % subj
             for method, file_list in streamnames.iteritems():
-                print '-- Method %s ' % method
-                if method=='xst':
-                    os.chdir('xst')
+                print '== Method %s ' % method
                 for tfile in file_list:
                     fext = os.path.splitext(tfile)
 
                     den_file = fext[0]+'_%s.nii.gz' % affix
                     print '>',den_file 
 
+                    # t1 -> average, file in processed
+                    den_t1_file = self.getGtsFilename(False,True, fext[0], affix, 'T1')
+                    print '#',den_t1_file
+                    output = self.getGtsFilename(False, True, subj, os.path.basename(fext[0]), affix)
+                    print '#',output                    
+                    output = c.processed_path+'/'+output
+
                     if os.path.isfile(den_file):
                         trans = ''
 
-                        # t1 -> average, file in processed
-                        output1 = self.getGtsFilename(False,True, fext[0], affix, 'T1')
-                        output2 = self.getGtsFilename(False, True, subj, method, fext[0], affix)
-                        #print '#',output2
-
-                        output2 = c.processed_path+'/'+output2
-                        trans += self.ants_apply_transform_average_to_t1(subj, output1, output2, reference='average', inverse=True, just_transform_param=True)
+                        trans += self.ants_apply_transform_average_to_t1(subj, den_t1_file, output, reference='average', inverse=True, just_transform_param=True)
 
                         # dwi -> t1 projection first, file stay in the tractography dirs
-                        trans += ' '+self.ants_apply_transform_t1_to_dwi(subj, den_file, output1, reference='t1', inverse=True, just_transform_param=True) 
+                        trans += ' '+self.ants_apply_transform_t1_to_dwi(subj, den_file, den_t1_file, reference='t1', inverse=True, just_transform_param=True) 
                         
 
 
@@ -733,21 +865,21 @@ class GroupTractStats:
                         ref = c.orig_path+'/'+ref          
                         interp = 'NearestNeighbor'
 
-                        cmd=('antsApplyTransforms -d 3 -i %s -o %s -r %s -n %s ' % (den_file, output2, ref, interp))
+                        cmd=('antsApplyTransforms -d 3 -i %s -o %s -r %s -n %s ' % (den_file, output, ref, interp))
                         cmd += trans
-                        exec_cmd(cmd)                                                           
-
-                        subj_files.append(output2)
-                    else:
+                        #exec_cmd(cmd)                                                           
+                        
+                    else:                        
                         not_found_table.append(subj+'/'+den_file)
-                if method=='xst':
-                    os.chdir('..')
+                    subj_files.append(output)                        
 
             image_table.append(subj_files)            
             os.chdir(root)
 
         # for i in image_table:
-        #     print '#',image_table
+        #     print '@@'
+        #     for j in i:
+        #         print '#',j
 
         # for i in not_found_table:
         #     print '!',i
@@ -755,6 +887,11 @@ class GroupTractStats:
 
         #image_table = np.array(image_table, dtype='object')
         image_table = map(list, zip(*image_table))
+        for i in image_table:
+            print '#'
+            for j in i:
+                print j
+
 
         import nibabel as nib
         import gc
@@ -762,6 +899,8 @@ class GroupTractStats:
         refimg = nib.load(c.orig_path+'/con_average.nii.gz')
 
         print '=== Perform conjuction ==='
+
+        conj_files_list=[]
 
         for r in image_table:
             if len(r) > 0:
@@ -772,6 +911,8 @@ class GroupTractStats:
 
                 for i,j in enumerate(r):
                     print j
+                    if not os.path.isfile(j):
+                        continue
                     img = nib.load(j)
                     idata = img.get_data()
                     data_pool = np.add(data_pool,idata)     
@@ -779,7 +920,9 @@ class GroupTractStats:
                     del idata           
                 data_pool = np.divide(data_pool,len(r))
                 nifti = nib.Nifti1Image(data_pool, refimg.get_affine())
-                nib.save(nifti, c.processed_path+'/'+label+'_%s_average.nii.gz' % affix)
+                conj_file = c.processed_path+'/'+label+'_%s_average.nii.gz' % affix
+                nib.save(nifti, conj_file)
+                conj_files_list.append(conj_file)
                 del data_pool
                 gc.collect()
 
@@ -787,6 +930,107 @@ class GroupTractStats:
         for i in not_found_table:
             print i
 
+        return conj_files_list
+
+
+
+    def conjunction_to_images(self, file_list, slice_indices=(0,0,0), name='', bg_file='' , auto_slice=True):
+        import vol2iso_viz
+        c = self.config
+
+        imgpath = c.processed_path+'/images'
+        for filename in file_list:
+            fig_base = os.path.basename(filename).split('.')[0]
+            fig_name = imgpath+'/'+self.getGtsFilename(False, False, fig_base, name, 'axial.png')
+            print fig_name
+            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='z_axes', auto_slice=auto_slice, slice_index=slice_indices[2], save_fig=fig_name)
+
+            fig_name = imgpath+'/'+self.getGtsFilename(False, False, fig_base, name, 'coronal.png')
+            print fig_name            
+            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='y_axes', auto_slice=auto_slice, slice_index=slice_indices[1],save_fig=fig_name)
+
+            fig_name = imgpath+'/'+self.getGtsFilename(False, False, fig_base, name, 'sag.png')
+            print fig_name            
+            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='x_axes', auto_slice=auto_slice, slice_index=slice_indices[0],save_fig=fig_name)
+
+            fig_name = imgpath+'/'+self.getGtsFilename(False, False, fig_base, name, 'isometric.png')
+            print fig_name
+            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='iso', auto_slice=auto_slice, slice_index=slice_indices[2],save_fig=fig_name)                                    
+
+    def conjunction_images_combine(self):
+        import Image
+        import ImageDraw
+        import ImageFont
+
+        print '===================== PERFORM conjunction_images_combine ======================='
+        c = self.config
+        imgpath = c.processed_path+'/images'
+        num_methods = len(c.tract_method)
+        num_rois = len(c.roi_labels_str)
+
+        # compile a matrix of images
+        os.chdir(imgpath)
+
+        bgOpt = ['bg', 'nobg']
+        orientOpt = ['axial', 'coronal', 'sag', 'isometric']
+
+        res = (1024,768)
+
+        for bg in bgOpt:
+            for roi in c.roi_labels_str:
+                img_matrix = []
+                longest_label = ''
+                for method in c.tract_method:
+                    mlabel = method['label']
+                    if len(mlabel) > len(longest_label):
+                        longest_label = mlabel
+
+                    for ori in orientOpt:
+                        filename=self.getGtsFilename(False,False,mlabel,roi,'filtered_bin_average',bg,ori+'.png')
+
+                        #files = glob(mlabel+'*'+roi+'*'+bg+'*'+ori+'*')
+                        #for f in files:
+                        img_matrix.append(filename)
+                img_matrix = np.array(img_matrix).reshape(num_methods, len(orientOpt)).T
+
+                img_name = self.getGtsFilename(False,False,roi,bg+'.png')
+                print 'Creating %s' % img_name
+
+                fontPath = "/usr/share/fonts/truetype/droid/DroidSans.ttf"
+                f  =  ImageFont.truetype ( fontPath, 72 )
+                new_img = Image.new('RGB', res)
+                draw = ImageDraw.Draw(new_img)
+                max_label_size=draw.textsize(longest_label, font=f)                
+
+                label_padding = max_label_size[0]+50
+                img_width = res[0]*img_matrix.shape[0] + label_padding
+                img_height = res[1]*img_matrix.shape[1]
+                new_img = Image.new('RGB', (img_width, img_height))
+
+                for (x,y), val in np.ndenumerate(img_matrix):
+                    print x,y,val
+                    xpos = res[0]*x + label_padding
+                    ypos = res[1]*y
+                    im = Image.open(val)
+                    new_img.paste(im, (xpos, ypos))
+
+                for i in range(0,num_methods):
+                    text = c.tract_method[i]['label']
+                    print c.tract_method[i]['label']
+                    xpos = 10                    
+                    ypos = res[1]*i+res[1]/2
+                    draw = ImageDraw.Draw(new_img)
+
+                    text_size=draw.textsize(text, font=f)
+                    draw.text((xpos,ypos-text_size[1]/2), text, fill="white", font=f)
+
+                new_img.save(img_name)
+
+
+
+
+
+        os.chdir(c.root)
 
 
 

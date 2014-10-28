@@ -9,6 +9,18 @@ class GtsConfig(object):
 
         if not conf_file == "":
             self.loadFromJson(conf_file)
+            self.root = os.getcwd()
+            self.orig_path = self.root+'/'+self.orig_path
+            self.preprocessed_path = self.root+'/' + self.preprocessed_path
+            self.T1_processed_path = self.root + '/' + self.T1_processed_path
+            self.processed_path = self.root+'/'+self.processed_path
+            self.tractography_path_full = self.root+'/'+self.tractography_path
+
+            if not self.manual_subjects:
+                with open(self.subjects_file, "r") as f:
+                    self.subjects= [ l.rstrip() for l in f ]
+
+            print self.subjects            
             return
 
         self._CONFIG = {}
@@ -23,7 +35,7 @@ class GtsConfig(object):
         self._CONFIG["tractography_path"] = './tractography'
         self._CONFIG["ind_roi_path"] = "./rois"
         self._CONFIG["prefix"]="ANTS_"
-        self._CONFIG["affix"]='_FA2T1'
+        self._CONFIG["affix"]=''
         self._CONFIG["template_rois"] = ['roi_con', 'all-targets_con']
         self._CONFIG["rois"] = ['roi', 'all-targets']
         self._CONFIG["imgext"] = '.nii.gz'
@@ -44,20 +56,13 @@ class GtsConfig(object):
 
     def loadFromJson(self,conf=""):
         if not conf == "":
+            print '>',conf
             fp = open(conf, 'r')
             parser = JsonComment(json)
-            self._CONFIG = parser.load(fp)
+            config_map = parser.load(fp)
+            for k,v in config_map.iteritems():
+                if k=='import':
+                    self.loadFromJson(v)
+                self._CONFIG[k] = v
             fp.close()
 
-        self.root = os.getcwd()
-        self.orig_path = self.root+'/'+self.orig_path
-        self.preprocessed_path = self.root+'/' + self.preprocessed_path
-        self.T1_processed_path = self.root + '/' + self.T1_processed_path
-        self.processed_path = self.root+'/'+self.processed_path
-        self.tractography_path_full = self.root+'/'+self.tractography_path
-
-        if not self.manual_subjects:
-            with open(self.subjects_file, "r") as f:
-                self.subjects= [ l.rstrip() for l in f ]
-
-        print self.subjects
