@@ -16,6 +16,8 @@ conf_file = sys.argv[1]
 gts =  GroupTractStats(conf_file)
 
 basename = os.path.basename(conf_file).split('.')[0]
+tracts_file = basename+'_tracts.txt'
+conj_files_list = basename+'_conj_files.txt'
 
 
 # gts.preprocessDWI()
@@ -25,12 +27,13 @@ basename = os.path.basename(conf_file).split('.')[0]
 
 tracts = gts.seedIndividualTracts(labels=[2],recompute=False,overwrite=True)
 
-tracts_file = basename+'_tracts.txt'
+
 with open(tracts_file, 'w') as outfile:
 	json.dump(tracts, outfile, sort_keys=True, indent=4, separators=(',', ': '))
 
 with open(tracts_file, 'r') as fp:
 	tracts = json.load(fp)
+print tracts
 
 gts.tracts_to_images(tracts)
 #gts.viewTracks()
@@ -40,7 +43,7 @@ gts.tracts_to_density(tracts)
 
 conj_files = gts.tracts_conjunction(tracts, img_type='binary')
 print conj_files
-conj_files_list = basename+'_conj_files.txt'
+
 
 
 print conj_files_list
