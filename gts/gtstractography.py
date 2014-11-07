@@ -2,16 +2,25 @@ import os
 import os.path as path
 
 class TractographyMethod(object):
-    def factory(type, subj, seed_config, method_config, global_config):
+    def factory(subj, seed_config, method_config, global_config):
         from tractography.mrtrix import Mrtrix
+        from tractography.slicer import Slicer3
+        from tractography.xst import Xst
+
+        type = method_config['method']
 
         if type=='mrtrix':
-            return Mrtrix(subj, seed_config, method_config, global_config)        
+            return Mrtrix(subj, seed_config, method_config, global_config)
+
         # if type=='xst':
         #     return Xst(subj, seed_config, method_config, global_config)
 
-        # if type=='slicer3':
-        #     return Slicer3(subj, seed_config, method_config, global_config)
+        if type=='slicer3':
+            return Slicer3(subj, seed_config, method_config, global_config)
+
+        if type=='xst':
+            return Xst(subj, seed_config, method_config, global_config)
+
     factory = staticmethod(factory)
 
     global_config = {}
@@ -29,11 +38,11 @@ class TractographyMethod(object):
         self.recompute=False
         self.overwrite=False
 
-    def gotoWorkingPath(self):
+    def goto_working_path(self):
         self.path = self.global_config.tractography_path_full+'/'+self.subject
         os.chdir(self.path)
 
-    def resetPath(self):
+    def reset_path(self):
         os.chdir(self.global_config.root)
 
     def get_seed_info(self):

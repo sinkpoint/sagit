@@ -1,51 +1,93 @@
+import gts
+from gts import exec_cmd
 import os
-from ... import exec_cmd
-from ... import TractographyMethod
-from vtk import vtkPolyDataReader
-from vtk import vtkXMLPolyDataWriter
-from vtk import vtkXMLPolyDataReader
-from vtk import vtkPolyDataWriter
+from os import path
 
-class Slicer3(TractographyMethod):
+class Slicer3(gts.TractographyMethod):
+    def __init__(self, subj, seed_config, method_config, global_config):
+        super(Slicer3, self).__init__(subj, seed_config, method_config, global_config)
+
+    def convert_nifti_to_nrrd(input):
+        basename = os.path.basename(input).split('.')[0]
+        ipath = os.path.split(input)[0]
+        output = os.path.join(ipath,basename+'.nrrd')
+        cmd = 'slicerFileConvert.sh -i %s -o %s' % (input, output)    
+        exec_cmd(cmd, display=False)        
+
+        return output  
+
+    convert_nifti_to_nrrd = staticmethod(convert_nifti_to_nrrd)
+
+    def prep_seed_files(self):
+        include_file = ''
+        exclude_file = ''
+
+        inc = self.get_includes_info()
+        if inc:
+            include_file = self.combine_masks(inc, name='includes')
+            include_file = self.convert_nifti_to_nrrd(include_file)
+
+        ex = self.get_excludes_info()
+        if ex:
+            exclude_file = self.combine_masks(ex, name='excludes')
+            exclude_file = self.convert_nifti_to_nrrd(exclude_file)
+
+        seed_info = self.get_seed_info()
+        seed_file = seed_info['filename']
+        seed_file = self.convert_nifti_to_nrrd(seed_file)
+
+        return include_file, exclude_file, seed_file        
+
     def run(self):
-        tract()
+        self.goto_working_path()
 
-    def tract(self, subj, roi_base, exclude_base, label, recompute=False, overwrite=False, label_exclude=10,label_str="", label_include=11, config=None, params='', method_label='slicer'):
-        c = config
+        include_file, exclude_file, seed_file = self.prep_seed_files()
 
-        roi_file = roi_base+'.nhdr'
-        output_base = method_label+'_'+label_str
-        unfiltered_file=output_base+'.vtp'
+        seed_info = self.get_seed_info()
 
-        if not os.path.isfile(unfiltered_file) or overwrite is True:
-            if params=='':
-                params = '--stoppingvalue 0.2 --minimumlength 5 --clthreshold 0.2 --randomgrid --seedspacing 0.5 ' 
+        fiber_basename = self.get_unique_name()
+        unfiltered_file = '%s.vtp' % fiber_basename    
+  
 
-            #cmd = 'slicerTractography.sh --inputroi %s  --label %s %s dti.nhdr %s' % (roi_file, label, params, unfiltered_file)
-            cmd = 'slicerTractography.sh --label %s %s dti.nhdr  %s  %s' % (label, params, roi_file, unfiltered_file)
-            exec_cmd(cmd)
+        params = '--stoppingvalue 0.2 --minimumlength 5 --clthreshold 0.2 --randomgrid --seedspacing 0.5 ' 
+        if 'params' in self.method_config:
+            streamparam = self.method_config['params']
 
+        cmd = 'slicerTractography.sh --label %s %s dti.nhdr  %s  %s' % (seed_info['label'], params, seed_file, unfiltered_file)
+        exec_cmd(cmd, truncate=True)
+
+        output = self.filter_step(unfiltered_file, include_file, exclude_file)
+
+        self.reset_path()
+        return output
+
+    def filter_step(self, unfiltered_file, include_file, exclude_file):
         import shutil
-        fitered_temp = '%s_filtered.vtp' % output_base
-        shutil.copy2(unfiltered_file, fitered_temp)
+        from vtk import vtkXMLPolyDataReader
+        from vtk import vtkPolyDataWriter
 
-        if label_include > 0:
-            cmd='slicerFilterFibers.sh --pass %d %s %s %s' % (label_include, exclude_base+'.nhdr', fitered_temp, fitered_temp)
+        fiber_basename = self.get_unique_name()
+        filtered_temp_file = '%s_filtered.vtp' % fiber_basename
+        shutil.copy2(unfiltered_file, filtered_temp_file)        
+
+        if include_file: 
+            cmd='slicerFilterFibers.sh --pass 1 %s %s %s' % (include_file, filtered_temp_file, filtered_temp_file)
             exec_cmd(cmd)
 
-        if label_exclude > 0:
-            cmd='slicerFilterFibers.sh --nopass %d %s %s %s' % (label_exclude, exclude_base+'.nhdr', fitered_temp, fitered_temp)
-            exec_cmd(cmd)    
+        if exclude_file:
+            cmd='slicerFilterFibers.sh --nopass 1 %s %s %s' % (exclude_file, filtered_temp_file, filtered_temp_file)
+            exec_cmd(cmd)
 
         vreader = vtkXMLPolyDataReader()
-        vreader.SetFileName(fitered_temp)
+        vreader.SetFileName(filtered_temp_file)
         vreader.Update()
         polydata = vreader.GetOutput()
 
         vwriter = vtkPolyDataWriter()
-        output_file = '%s_filtered.vtk' % output_base
+        output_file = '%s_filtered.vtk' % fiber_basename
         vwriter.SetFileName(output_file)
         vwriter.SetInput(polydata)
         vwriter.Write()
 
-        return output_file     
+        return output_file 
+ 

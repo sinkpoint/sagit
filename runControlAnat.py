@@ -35,7 +35,7 @@ with open(tracts_file, 'r') as fp:
 	tracts = json.load(fp)
 print tracts
 
-gts.tracts_to_images(tracts)
+#gts.tracts_to_images(tracts)
 #gts.viewTracks()
 
 
@@ -53,7 +53,6 @@ with open(conj_files_list, 'w') as outfile:
 with open(conj_files_list, 'r') as fp:
  	conj_files = json.load(fp)
 
-print conj_files
 gts.conjunction_to_images(conj_files, name='nobg', bg_file='')
 gts.conjunction_to_images(conj_files, name='bg', bg_file=gts.config.orig_path+'/con_average.nii.gz', slice_indices=(128,128,80))
 

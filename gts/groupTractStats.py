@@ -16,6 +16,7 @@ from glob import glob
 from os import getcwd
 from os import path
 from os import chdir
+from os import mkdir
 
 import nibabel as nib
 from nibabel import trackvis as tv
@@ -240,7 +241,7 @@ class GroupTractStats:
 
         if auto_naming:
             output = output+'_'+reference+imgext
-        print '######t1_to_dwi#######',output
+        #print '######t1_to_dwi#######',output
 
         ref = orig_path+'/'+ref
 
@@ -430,8 +431,6 @@ class GroupTractStats:
             print '-----------------------------------------------------------------'
             print subj
             subjdir = tractography_path+'/'+subj+'/'
-            ras_corrected_file = subj+'_dwi_ras.nhdr'
-
             subjRes = { 'name' : subj }
 
             if not path.isdir(subjdir):
@@ -440,31 +439,35 @@ class GroupTractStats:
                 mkdir(subjdir)
 
 
-                subj_source_path = dwi_path+subj
+                subj_source_path = path.join(dwi_path,subj)
                 chdir(subj_source_path)
 
                 dwi_folder = glob("*DTI*60*")[0]
                 chdir(dwi_folder+'/nifti')
 
-                subj_dwi_path = getcwd()
+                subj_dwi_source_path_abs = getcwd()
                 chdir(subjdir)
 
-                cmd = 'ln -s %s dwi' % (subj_dwi_path)
+                cmd = 'ln -s %s dwi' % (subj_dwi_source_path_abs)
                 exec_cmd(cmd)
 
 
                 print 'copy DWI file to '+subjdir
 
-                dwi_file = '/DWI_CORRECTED'
-                slicer_comp_file = subjdir+dwi_file+'.nhdr'
+                # copy dwi_corrected to tractography/subj dir
+                # correct this to RAS, because xst doesn't understand LPS 
 
-                cmd = 'slicerDwiFileConvert.sh %s %s' % (subj_dwi_path+'/'+dwi_file+'.nhdr', slicer_comp_file)
+                dwi_file = 'DWI_CORRECTED.nhdr'
+                slicer_comp_file = path.join(subjdir,dwi_file)
 
+                cmd = 'slicerDwiFileConvert.sh %s %s' % (path.join(subj_dwi_source_path_abs, dwi_file), slicer_comp_file)
                 exec_cmd(cmd)
 
+                ras_corrected_file = subj+'_dwi_ras.nhdr'
                 reader = nrrd.NrrdReader()
                 header = reader.getFileAsHeader(slicer_comp_file)
-                #header.correctSpaceRas() # convert spacing to RAS, this probably is not needed
+                # once slicer reads the file, it will convert the file it's a space that it understands                
+                header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
                 writer = nrrd.NrrdWriter()
                 writer.write(header, subjdir+'/'+ras_corrected_file)
 
@@ -518,8 +521,8 @@ class GroupTractStats:
                 shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
                 roi_filebase = roi_file.split('.')[0]
 
-                cmd="slicerFileConvert.sh -i %s -o %s > /dev/null " % (roi_file, roi_filebase+'.nhdr');
-                exec_cmd(cmd)
+                cmd="slicerFileConvert.sh -i %s -o %s " % (roi_file, roi_filebase+'.nhdr');
+                exec_cmd(cmd, display=False)
 
                 roi_file = roi.get_filename(subj, ref='t1')
                 shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
@@ -538,16 +541,12 @@ class GroupTractStats:
                 seed_map['name'] = k
 
                 for imethod in c.tract_method:
-                    itract = imethod['method']
-                    iparam = imethod['params']
                     method_label  = imethod['label']
 
 
-
-                    if itract == 'mrtrix':
-                        print '\n-- PERFORM MRTRIX'
-                        method = TractographyMethod.factory('mrtrix', subj, seed_map, imethod, c)
-                        fiber_name = method.run()
+                    print '\n-- PERFORM %s' % method_label
+                    method = TractographyMethod.factory(subj, seed_map, imethod, c)
+                    fiber_name = method.run()
 
 
                     #     if not mrtrix_has_recompute:
@@ -853,7 +852,7 @@ class GroupTractStats:
         """
 
         c = self.config
-        tract_path = c.tractography_path
+        tract_path = c.tractography_path_full
 
         image_table = []
         not_found_table = []
@@ -876,17 +875,17 @@ class GroupTractStats:
             for method, file_list in streamnames.iteritems():
                 print '== Method %s ' % method
                 for tfile in file_list:
+                    # get the volume file associated with the track
                     fext = path.splitext(tfile)
-
                     den_file = fext[0]+'_%s.nii.gz' % affix
                     print '>',den_file
 
                     # t1 -> average, file in processed
                     den_t1_file = self._g(fext[0], affix, 'T1', prefix=False)
-                    print '#',den_t1_file
+                    #print '#',den_t1_file
                     output = self._g(subj, path.basename(fext[0]), affix, prefix=False)
-                    print '#',output
                     output = c.processed_path+'/'+output
+                    print '>',output
 
                     if path.isfile(den_file):
                         trans = ''
@@ -896,27 +895,20 @@ class GroupTractStats:
                         # dwi -> t1 projection first, file stay in the tractography dirs
                         trans += ' '+self.ants_apply_transform_t1_to_dwi(subj, den_file, den_t1_file, reference='t1', inverse=True, just_transform_param=True)
 
-
-
                         ref = 'con_average.nii.gz' # % subj
                         ref = c.orig_path+'/'+ref
                         interp = 'NearestNeighbor'
 
                         cmd=('antsApplyTransforms -d 3 -i %s -o %s -r %s -n %s ' % (den_file, output, ref, interp))
                         cmd += trans
-                        #exec_cmd(cmd)
+                        exec_cmd(cmd)
 
-                    else:
+                    else:                        
                         not_found_table.append(subj+'/'+den_file)
                     subj_files.append(output)
 
             image_table.append(subj_files)
             chdir(root)
-
-        # for i in image_table:
-        #     print '@@'
-        #     for j in i:
-        #         print '#',j
 
         # for i in not_found_table:
         #     print '!',i
@@ -924,26 +916,28 @@ class GroupTractStats:
 
         #image_table = np.array(image_table, dtype='object')
         image_table = map(list, zip(*image_table))
-        for i in image_table:
-            print '#'
-            for j in i:
-                print j
+        # for i in image_table:
+        #     print '#'
+        #     for j in i:
+        #         print j
 
 
         import nibabel as nib
         import gc
 
-        refimg = nib.load(c.orig_path+'/con_average.nii.gz')
+        ref_img_path = path.join(c.orig_path,c.template_def['reference'])
+        refimg = nib.load(ref_img_path)
 
         print '=== Perform conjuction ==='
 
         conj_files_list=[]
 
-        for r in image_table:
+        for r in image_table:            
             if len(r) > 0:
+                print '--------------'
                 label = path.basename(r[0])
+                #get the group name, get rid of subject and bin/density image tag
                 label = '_'.join(label.split('_')[1:-1])
-                print '###',label
                 data_pool = np.zeros(refimg.get_shape()[:3])
 
                 for i,j in enumerate(r):
@@ -957,15 +951,17 @@ class GroupTractStats:
                     del idata
                 data_pool = np.divide(data_pool,len(r))
                 nifti = nib.Nifti1Image(data_pool, refimg.get_affine())
-                conj_file = c.processed_path+'/'+label+'_%s_average.nii.gz' % affix
+                conj_file = path.join(c.processed_path, label+'_%s_average.nii.gz' % affix)
                 nib.save(nifti, conj_file)
+                print '# Save to %s' % conj_file
                 conj_files_list.append(conj_file)
                 del data_pool
                 gc.collect()
 
-        print '=== The following are not found:'
-        for i in not_found_table:
-            print i
+        if len(not_found_table) > 0:
+            print '=== The following are not found:'
+            for i in not_found_table:
+                print i
 
         return conj_files_list
 
@@ -1003,7 +999,7 @@ class GroupTractStats:
         c = self.config
         imgpath = c.processed_path+'/images'
         num_methods = len(c.tract_method)
-        num_rois = len(c.roi_labels_str)
+        num_rois = len(c.seeds_def.keys())
 
         # compile a matrix of images
         chdir(imgpath)
@@ -1014,7 +1010,7 @@ class GroupTractStats:
         res = (1024,768)
 
         for bg in bgOpt:
-            for roi in c.roi_labels_str:
+            for roi, val in c.seeds_def.iteritems():
                 img_matrix = []
                 longest_label = ''
                 for method in c.tract_method:
@@ -1053,13 +1049,23 @@ class GroupTractStats:
 
                 for i in range(0,num_methods):
                     text = c.tract_method[i]['label']
-                    print c.tract_method[i]['label']
+                    print text
                     xpos = 10
                     ypos = res[1]*i+res[1]/2
                     draw = ImageDraw.Draw(new_img)
 
                     text_size=draw.textsize(text, font=f)
                     draw.text((xpos,ypos-text_size[1]/2), text, fill="white", font=f)
+
+                for i,orient in enumerate(orientOpt):
+                    text = orient 
+                    print text
+                    xpos = res[0]*i+res[0]/2
+                    ypos = 10
+                    draw = ImageDraw.Draw(new_img)
+
+                    text_size=draw.textsize(text, font=f)
+                    draw.text((xpos+text_size[0]/2,ypos), text, fill="white", font=f)                    
 
                 new_img.save(img_name)
 

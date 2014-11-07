@@ -1,14 +1,89 @@
+import gts
+from gts import exec_cmd
 import os
-from vtk import vtkPolyDataReader
-from vtk import vtkXMLPolyDataWriter
-from vtk import vtkXMLPolyDataReader
-from vtk import vtkPolyDataWriter
-from ... import exec_cmd
-from ... import TractographyMethod
+from os import path
 
-class Xst(TractographyMethod):
+class Xst(gts.TractographyMethod):
+    def __init__(self, subj, seed_config, method_config, global_config):
+        super(Xst, self).__init__(subj, seed_config, method_config, global_config)
+
     def run(self):
-        self.tract()
+        include_file = ''
+        exclude_file = ''
+
+        inc = self.get_includes_info()
+        if inc:
+            include_file = self.combine_masks(inc, name='includes')
+
+        ex = self.get_excludes_info()
+        if ex:
+            exclude_file = self.combine_masks(ex, name='excludes')
+
+        seed_info = self.get_seed_info()
+        seed_file = seed_info['filename']
+
+        fiber_basename = self.get_unique_name()
+        unfiltered_file = '%s.vtk' % fiber_basename    
+        filtered_temp_file = '%s_filtered.vtp' % fiber_basename      
+
+        params = "-stop aniso:cl2,0.15 frac:0.1 radius:0.8 minlen:10 -step 0.1"
+        if 'params' in self.method_config:
+            streamparam = self.method_config['params']
+
+        cmd='seedTend2Points.py -i %s -n 10 -r -m %s' % (seed_file, fiber_basename)
+        exec_cmd(cmd)
+
+        cmd="tend2 fiber -i %s -dwi -wspo -ns seeds/%s%d.txt -o %s -ap -v 2 -t 2evec0 -k cubic:0.0,0.5 -n rk4 %s" % (dwi_file, roiBase,label,unfiltered_file, params)
+
+        exec_cmd(cmd)
+
+        from vtk import vtkPolyDataReader
+        from vtk import vtkPolyDataWriter
+        from vtk import vtkXMLPolyDataWriter
+        from vtk import vtkXMLPolyDataReader
+
+        #convert vtk to vtp files to filter
+        vreader = vtkPolyDataReader()
+        vreader.SetFileName(unfiltered_file)
+        vreader.Update()
+        polydata = vreader.GetOutput()
+
+        vwriter = vtkXMLPolyDataWriter()
+        vwriter.SetFileName(fiber_basename+'.vtp')
+        vwriter.SetInput(polydata)
+        vwriter.Update()
+        vwriter.Write()
+
+        import shutil
+        filtered_temp = 'xst/%s_filtered.vtp' % fiber_basename
+        shutil.copy2(fiber_basename+'.vtp', filtered_temp_file)    
+
+        if include_file:
+            cmd='slicerFilterFibers.sh --pass 1 %s %s %s' % (include_file, filtered_temp_file, filtered_temp_file)
+            exec_cmd(cmd)
+
+        if exclude_file:
+            cmd='slicerFilterFibers.sh --nopass 1 %s %s %s' % (exclude_file, filtered_temp_file, filtered_temp_file)
+            exec_cmd(cmd)
+
+        # convert vtp back to vtk to load in dipy
+        # TODO: load vtp directly in VTK renderer instead;
+        # or consider using webgl
+
+        vreader = vtkXMLPolyDataReader()
+        vreader.SetFileName(filtered_temp_file)
+        vreader.Update()
+        polydata = vreader.GetOutput()
+
+        vwriter = vtkPolyDataWriter()
+        output_file = 'xst/%s_filtered.vtk' % fiber_basename
+        vwriter.SetFileName(output_file)
+        vwriter.SetInput(polydata)
+        vwriter.Write()
+
+        return output_file
+
+
 
     def tract(self, subj, roi_base, exclude_base, label=1, label_exclude=10, overwrite=False, label_str="", label_include=11, dwi_file='', config=None, gen_only=False, params='', method_label='xst'):
         c = config
