@@ -36,7 +36,7 @@ with open(tracts_file, 'r') as fp:
 print tracts
 
 #gts.tracts_to_images(tracts)
-#gts.viewTracks()
+gts.viewTracks()
 
 
 gts.tracts_to_density(tracts)

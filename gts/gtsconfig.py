@@ -13,7 +13,7 @@ class GtsConfig(object):
         if conf_file == '':
             # defaults 
             self._CONFIG = {}
-            self._CONFIG["root"] = os.getcwd()
+            self._CONFIG["root"] = getcwd()
             self._CONFIG["orig_path"] = "./orig"
             self._CONFIG["preprocessed_path"] = "./preprocessed"
             self._CONFIG["T1_processed_path"] = "./T1s/processed"
@@ -45,7 +45,7 @@ class GtsConfig(object):
 
             print self.subjects            
 
-        self.rois_def = {k:gtsroi.GtsRoi(v, global_config=self) for (k,v) in self.rois_def.iteritems()}
+        self.rois_def = {k:gtsroi.GtsRoi(k, v, global_config=self) for (k,v) in self.rois_def.iteritems()}
 
 
 

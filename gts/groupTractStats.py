@@ -516,17 +516,17 @@ class GroupTractStats:
 
             rois = c.rois_def
             for k, roi in rois.iteritems():
-                roi_file = roi.get_filename(subj)
+                if roi.type == 'from_template':
+                    roi_file = roi.get_filename(subj)
 
-                shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
-                roi_filebase = roi_file.split('.')[0]
+                    shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
+                    roi_filebase = roi_file.split('.')[0]
 
-                cmd="slicerFileConvert.sh -i %s -o %s " % (roi_file, roi_filebase+'.nhdr');
-                exec_cmd(cmd, display=False)
+                    cmd="slicerFileConvert.sh -i %s -o %s " % (roi_file, roi_filebase+'.nhdr');
+                    exec_cmd(cmd, display=False)
 
-                roi_file = roi.get_filename(subj, ref='t1')
-                shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
-
+                    roi_file = roi.get_filename(subj, ref='t1')
+                    shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
             stream_map = {}
             fiber_name = ''
             method_name = ''
@@ -620,17 +620,15 @@ class GroupTractStats:
         ind_roi_path = c.ind_roi_path
         tractography_path = c.tractography_path
 
-        for i,label_name in enumerate(c.roi_labels_str):
+        for label_name, seed_def in c.seeds_def.iteritems():
             for imethod in c.tract_method:
 
                 tmethod = imethod['method']
                 mlabel = imethod['label']
+                roi = c.rois_def[seed_def['source']]
 
-                if tmethod == 'mrtrix' or tmethod == 'slicer':
-                    fn = '%s_%s' % (mlabel, label_name)
-                    files = [fn,'%s_filtered' % fn]
-                elif tmethod == 'xst':
-                    files = ['xst/%s' % label_name,'xst/%s_filtered' % label_name]
+                fn = '%s_%s' % (mlabel, label_name)
+                files = [fn,'%s_filtered' % fn]
 
                 # HTML File output
                 jsfile = 'tracts_%s_%s.js' % (mlabel, label_name)
@@ -700,11 +698,10 @@ class GroupTractStats:
                         subjpath = '%s/%s' % (tractography_path, subj)
                         vtkfiber = '%s/%s.vtk' % (subjpath, f)
                         volume_base = '%s/%s' % (subjpath, subj)
-                        roi_name = self._d(subj, rois[0], ref='dwi')
-                        labelmap_dwi = '%s/%s.nii.gz' % (subjpath, roi_name)
 
-                        roi_name = self._d(subj, rois[0], ref='t1')
-                        labelmap_t1 = '%s/%s.nii.gz' % (subjpath, roi_name)
+                        labelmap_dwi = path.join(subjpath,roi.get_filename(subj, autogen=False))
+
+                        labelmap_t1 = path.join(subjpath,roi.get_filename(subj, ref='t1', autogen=False))
 
 
                         ### javascript data
@@ -745,7 +742,9 @@ class GroupTractStats:
                     chdir(origin)
                 htmlfile+='</body></html>\n'
 
-                FILE = open('tracts_%s_%s.html' % (mlabel, label_name), 'w')
+                fname = 'tracts_%s_%s.html' % (mlabel, label_name)
+                print 'write->',fname
+                FILE = open(fname, 'w')
                 FILE.write(htmlfile)
                 FILE.close()
 
