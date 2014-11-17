@@ -75,7 +75,7 @@ class Mrtrix(gts.TractographyMethod):
 
 
         output_tck = '%s_filtered.tck' % fiber_basename
-        cmd = 'tckgen  %s %s %s dwi/CSD8.mif %s ' % (streamparam, exclude_param, include_param, output_tck)
+        cmd = 'tckgen  %s %s %s dwi/CSD8.mif %s ' % (streamparam, include_param, exclude_param, output_tck)
         exec_cmd(cmd)
 
 

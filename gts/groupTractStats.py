@@ -712,7 +712,12 @@ class GroupTractStats:
 
                         fname = f
                         if tmethod=='xst':
-                            fname = f.split('/')[1]
+                            fname = f.split('/')
+                            if len(fname) > 1:
+                                fname = fname[1]
+                            else:
+                                fname = fname[0]
+
                         varname = 'r'+subj+fname
                         js += """
                         VTK_FILES['%s'] = ['%s',%s];
@@ -843,7 +848,7 @@ class GroupTractStats:
 
 
 
-    def tracts_conjunction(self, streamnames, img_type="density"):
+    def tracts_conjunction(self, streamnames, img_type="density", dry_run=False):
         """ Perform conjunction analysis of tracts by reverse project tracts to average T1 template, using density  maps
 
             Args:
@@ -874,7 +879,12 @@ class GroupTractStats:
             for method, file_list in streamnames.iteritems():
                 print '== Method %s ' % method
                 for tfile in file_list:
+                    print '>',tfile
                     # get the volume file associated with the track
+                    seed_base = tfile.split('.')[0]
+                    seed_name = seed_base[len(method)+1:]
+                    seed_name = seed_name.split('_')[0]
+
                     fext = path.splitext(tfile)
                     den_file = fext[0]+'_%s.nii.gz' % affix
                     print '>',den_file
@@ -900,11 +910,12 @@ class GroupTractStats:
 
                         cmd=('antsApplyTransforms -d 3 -i %s -o %s -r %s -n %s ' % (den_file, output, ref, interp))
                         cmd += trans
-                        exec_cmd(cmd)
+                        if not dry_run:
+                            exec_cmd(cmd)
 
                     else:                        
                         not_found_table.append(subj+'/'+den_file)
-                    subj_files.append(output)
+                    subj_files.append((output, method, seed_name))
 
             image_table.append(subj_files)
             chdir(root)
@@ -915,11 +926,10 @@ class GroupTractStats:
 
         #image_table = np.array(image_table, dtype='object')
         image_table = map(list, zip(*image_table))
-        # for i in image_table:
-        #     print '#'
-        #     for j in i:
-        #         print j
-
+        for i in image_table:
+            print '#'
+            for j in i:
+                print j
 
         import nibabel as nib
         import gc
@@ -934,16 +944,23 @@ class GroupTractStats:
         for r in image_table:            
             if len(r) > 0:
                 print '--------------'
-                label = path.basename(r[0])
+                label = path.basename(r[0][0])
                 #get the group name, get rid of subject and bin/density image tag
                 label = '_'.join(label.split('_')[1:-1])
                 data_pool = np.zeros(refimg.get_shape()[:3])
 
+                method = ''
+                seed_name = ''
+
                 for i,j in enumerate(r):
-                    print j
-                    if not path.isfile(j):
+                    img_file = j[0]
+                    method = j[1]
+                    seed_name = j[2]
+
+                    print img_file
+                    if not path.isfile(img_file):
                         continue
-                    img = nib.load(j)
+                    img = nib.load(img_file)
                     idata = img.get_data()
                     data_pool = np.add(data_pool,idata)
                     del img
@@ -953,7 +970,7 @@ class GroupTractStats:
                 conj_file = path.join(c.processed_path, label+'_%s_average.nii.gz' % affix)
                 nib.save(nifti, conj_file)
                 print '# Save to %s' % conj_file
-                conj_files_list.append(conj_file)
+                conj_files_list.append((conj_file,method,seed_name))
                 del data_pool
                 gc.collect()
 
@@ -966,67 +983,109 @@ class GroupTractStats:
 
 
 
-    def conjunction_to_images(self, file_list, slice_indices=(0,0,0), name='', bg_file='' , auto_slice=True):
+    def conjunction_to_images(self, file_list, slice_indices=(0,0,0), name='', bg_file='' , auto_slice=True,dry_run=False):
         import vol2iso_viz
         c = self.config
 
-        imgpath = c.processed_path+'/images'
-        for filename in file_list:
+        imgpath = c.processed_path+'/images/conjunctions'
+        if not path.isdir(imgpath):
+            os.mkdir(imgpath)
+        basename=''
+        all_imgs = []
+        for i in file_list:            
+            imgs = []
+            filename = i[0]
+            print '>',filename
+            seed_name = i[2]
+            group = {'method':i[1], 'seed':i[2]}            
+            seed_conf = c.seeds_def[seed_name]
+            if 'slicing_focus' in seed_conf:
+                slice_indices = seed_conf['slicing_focus']
+                auto_slice=False
+
             fig_base = path.basename(filename).split('.')[0]
-            fig_name = imgpath+'/'+self._g(fig_base, name, 'axial.png', prefix=False, ext=False)
-            print fig_name
-            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='z_axes', auto_slice=auto_slice, slice_index=slice_indices[2], save_fig=fig_name)
+            print fig_base
 
-            fig_name = imgpath+'/'+self._g(fig_base, name, 'coronal.png', prefix=False, ext=False)
+            fig_name = self._g(fig_base, name, 'axial.png', prefix=False, ext=False)
+            imgs.append(fig_name)
+            fig_name = path.join(imgpath,fig_name)
             print fig_name
-            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='y_axes', auto_slice=auto_slice, slice_index=slice_indices[1],save_fig=fig_name)
+            if not dry_run:
+                vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='z_axes', auto_slice=auto_slice, slice_index=slice_indices[2], save_fig=fig_name)
 
-            fig_name = imgpath+'/'+self._g(fig_base, name, 'sag.png', prefix=False, ext=False)
+            fig_name = self._g(fig_base, name, 'coronal.png', prefix=False, ext=False)
+            imgs.append(fig_name)            
+            fig_name = path.join(imgpath,fig_name)            
             print fig_name
-            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='x_axes', auto_slice=auto_slice, slice_index=slice_indices[0],save_fig=fig_name)
+            if not dry_run:
+                vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='y_axes', auto_slice=auto_slice, slice_index=slice_indices[1],save_fig=fig_name)
 
-            fig_name = imgpath+'/'+self._g(fig_base, name, 'isometric.png', prefix=False, ext=False)
+            fig_name = self._g(fig_base, name, 'sag.png', prefix=False, ext=False)
+            imgs.append(fig_name)            
+            fig_name = path.join(imgpath,fig_name)            
             print fig_name
-            vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='iso', auto_slice=auto_slice, slice_index=slice_indices[2],save_fig=fig_name)
+            if not dry_run:
+                vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='x_axes', auto_slice=auto_slice, slice_index=slice_indices[0],save_fig=fig_name)
 
-    def conjunction_images_combine(self):
+            fig_name = self._g(fig_base, name, 'isometric.png', prefix=False, ext=False)
+            imgs.append(fig_name)            
+            fig_name = path.join(imgpath,fig_name)            
+            print fig_name
+            if not dry_run:
+                vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='iso', auto_slice=auto_slice, slice_index=slice_indices[2],save_fig=fig_name)
+            
+            group['images'] = imgs
+            basename = fig_base.replace(i[1]+'_'+i[2]+'_','')
+            all_imgs.append(group)
+
+        return all_imgs, basename
+
+    def conjunction_images_combine(self, images_list, group_names=['bg', 'nobg'], basename='filtered_bin_average'):
         import Image
         import ImageDraw
         import ImageFont
+        from ordered_set import OrderedSet
 
         print '===================== PERFORM conjunction_images_combine ======================='
         c = self.config
-        imgpath = c.processed_path+'/images'
-        num_methods = len(c.tract_method)
-        num_rois = len(c.seeds_def.keys())
+        img_path = c.processed_path+'/images'
+        img_conjpath = path.join(img_path,'conjunctions')
+
+        methods = list(OrderedSet([i['method'] for i in images_list]))
+        print methods
+        rois = list(OrderedSet([i['seed'] for i in images_list]))
+
+        num_methods = len(methods)
+        num_rois = len(rois)
 
         # compile a matrix of images
-        chdir(imgpath)
 
-        bgOpt = ['bg', 'nobg']
+        bgOpt = group_names
         orientOpt = ['axial', 'coronal', 'sag', 'isometric']
+
 
         res = (1024,768)
 
         for bg in bgOpt:
-            for roi, val in c.seeds_def.iteritems():
+            for roi in rois:
                 img_matrix = []
                 longest_label = ''
-                for method in c.tract_method:
-                    mlabel = method['label']
+                for method in methods:
+                    mlabel = method
                     if len(mlabel) > len(longest_label):
                         longest_label = mlabel
 
                     for ori in orientOpt:
-                        filename=self._g(mlabel,roi,'filtered_bin_average',bg,ori+'.png', prefix=False, ext=False)
-
+                        filename=self._g(mlabel,roi,basename,bg,ori+'.png', prefix=False, ext=False)
+                        filename = path.join(img_conjpath,filename)
                         #files = glob(mlabel+'*'+roi+'*'+bg+'*'+ori+'*')
                         #for f in files:
                         img_matrix.append(filename)
                 img_matrix = np.array(img_matrix).reshape(num_methods, len(orientOpt)).T
 
-                img_name = self._g(roi,bg+'.png', prefix=False, ext=False)
-                print 'Creating %s' % img_name
+
+                img_name = self._g(roi,basename,bg+'.png', prefix=False, ext=False)
+                print '> Creating %s' % img_name
 
                 fontPath = "/usr/share/fonts/truetype/droid/DroidSans.ttf"
                 f  =  ImageFont.truetype ( fontPath, 72 )
@@ -1039,6 +1098,8 @@ class GroupTractStats:
                 img_height = res[1]*img_matrix.shape[1]
                 new_img = Image.new('RGB', (img_width, img_height))
 
+
+
                 for (x,y), val in np.ndenumerate(img_matrix):
                     print x,y,val
                     xpos = res[0]*x + label_padding
@@ -1047,7 +1108,7 @@ class GroupTractStats:
                     new_img.paste(im, (xpos, ypos))
 
                 for i in range(0,num_methods):
-                    text = c.tract_method[i]['label']
+                    text = methods[i]
                     print text
                     xpos = 10
                     ypos = res[1]*i+res[1]/2
@@ -1066,26 +1127,4 @@ class GroupTractStats:
                     text_size=draw.textsize(text, font=f)
                     draw.text((xpos+text_size[0]/2,ypos), text, fill="white", font=f)                    
 
-                new_img.save(img_name)
-
-
-
-
-
-        chdir(c.root)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                new_img.save(path.join(img_path,img_name))

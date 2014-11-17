@@ -2,7 +2,9 @@ import gts
 from gts import exec_cmd
 import os
 from os import path
-
+from vtk import vtkXMLPolyDataReader
+from vtk import vtkPolyDataWriter
+        
 class Slicer3(gts.TractographyMethod):
     def __init__(self, subj, seed_config, method_config, global_config):
         super(Slicer3, self).__init__(subj, seed_config, method_config, global_config)
@@ -56,6 +58,17 @@ class Slicer3(gts.TractographyMethod):
         cmd = 'slicerTractography.sh --label %s %s dti.nhdr  %s  %s' % (seed_info['label'], params, seed_file, unfiltered_file)
         exec_cmd(cmd, truncate=True)
 
+        vreader = vtkXMLPolyDataReader()
+        vreader.SetFileName(unfiltered_file)
+        vreader.Update()
+        polydata = vreader.GetOutput()
+
+        vwriter = vtkPolyDataWriter()
+        output_file = '%s.vtk' % fiber_basename
+        vwriter.SetFileName(output_file)
+        vwriter.SetInput(polydata)
+        vwriter.Write()
+
         output = self.filter_step(unfiltered_file, include_file, exclude_file)
 
         self.reset_path()
@@ -63,8 +76,6 @@ class Slicer3(gts.TractographyMethod):
 
     def filter_step(self, unfiltered_file, include_file, exclude_file):
         import shutil
-        from vtk import vtkXMLPolyDataReader
-        from vtk import vtkPolyDataWriter
 
         fiber_basename = self.get_unique_name()
         filtered_temp_file = '%s_filtered.vtp' % fiber_basename

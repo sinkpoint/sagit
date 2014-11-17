@@ -18,7 +18,7 @@ class Xst(slicer.Slicer3):
 
         params = "-stop aniso:cl2,0.15 frac:0.1 radius:0.8 minlen:10 -step 0.1"
         if 'params' in self.method_config:
-            streamparam = self.method_config['params']
+            params = self.method_config['params']
 
         cmd='seedTend2Points.py -i %s -n 10 -r -m %s' % (seed_file, seed_basename)
         exec_cmd(cmd, display=False)

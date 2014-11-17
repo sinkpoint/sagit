@@ -109,10 +109,11 @@ class TractographyMethod(object):
         import numpy as np
         data = None
         aff = None
-        for i in maps_list:
+        for i in maps_list:            
             filename = path.join(self.path, i['filename'])
+            print filename
             ndata, aff = self.extract_label_from_image(filename, i['label'])
-            if not data:
+            if data==None:
                 data = ndata
             else:
                 data = np.add(data, ndata)
