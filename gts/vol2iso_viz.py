@@ -21,10 +21,24 @@ def vol2iso_viz(vol_file, bg_file, bgcolor=(0,0,0), bgslice='', auto_slice=True,
 
 		print data.shape
 
+		af = fimg.get_affine()
+		origin = af[:3,3]
+		stride = [af[0,0],af[1,1],af[2,2]]
+		print stride
+
+		if stride[0] < 0:
+			print 'flipX'
+			data = data[::-1,:,:]
+			#data = np.flipud(data)
+		if stride[1] < 0:
+			print 'flipY'			
+			data = data[:,::-1,:]
+		if stride[2] < 0:
+			print 'flipZ'			
+			data = data[:,:,::-1]			
+
 		src = mlab.pipeline.scalar_field(data)
 		src.spacing = hdr.get_zooms()
-
-		origin = fimg.get_affine()[:3,3]
 		src.origin = origin
 
 		src.update_image_data = True	
