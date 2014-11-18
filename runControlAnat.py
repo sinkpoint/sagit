@@ -25,11 +25,11 @@ conj_files_list = basename+'_conj_files.txt'
 # gts.projectRoiT1TemplateToSingle()
 # gts.projectRoiT1ToDwi()
 
-tracts = gts.seedIndividualTracts(labels=[2],recompute=False,overwrite=True)
+# tracts = gts.seedIndividualTracts(labels=[2],recompute=False,overwrite=True)
 
 
-with open(tracts_file, 'w') as outfile:
-	json.dump(tracts, outfile, sort_keys=True, indent=4, separators=(',', ': '))
+# with open(tracts_file, 'w') as outfile:
+# 	json.dump(tracts, outfile, sort_keys=True, indent=4, separators=(',', ': '))
 
 with open(tracts_file, 'r') as fp:
 	tracts = json.load(fp)
@@ -43,9 +43,11 @@ for k,v in unfiltered_tracts.iteritems():
     for i,j in enumerate(v):
         v[i] = j.replace('_filtered','')
 
+dry_run_conjunc = False
 
 def densityMapping(tracts, dry_run=False):
-    # gts.tracts_to_density(tracts)
+    if not dry_run:
+        gts.tracts_to_density(tracts)
 
     conj_files = gts.tracts_conjunction(tracts, img_type='binary',dry_run=dry_run)
     print conj_files
@@ -65,9 +67,9 @@ def densityMapping(tracts, dry_run=False):
     gts.conjunction_images_combine(fig_list, basename=basename, group_names=['bg'])
 
 print tracts
-densityMapping(tracts, dry_run=False)
+densityMapping(tracts, dry_run=dry_run_conjunc)
 
 print unfiltered_tracts
-densityMapping(unfiltered_tracts, dry_run=False)
+densityMapping(unfiltered_tracts, dry_run=dry_run_conjunc)
 
 

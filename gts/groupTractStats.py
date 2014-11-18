@@ -1052,6 +1052,8 @@ class GroupTractStats:
         img_conjpath = path.join(img_path,'conjunctions')
 
         methods = list(OrderedSet([i['method'] for i in images_list]))
+        methods.sort()
+        
         print methods
         rois = list(OrderedSet([i['seed'] for i in images_list]))
 
