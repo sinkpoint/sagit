@@ -12,4 +12,4 @@ def vtkToStreamlines(filename):
         pts = inputPolyData.GetCell(i).GetPoints()
         npts = np.array([pts.GetPoint(i) for i in range(pts.GetNumberOfPoints())])
         streamlines.append(npts)
-    return streamlines
+    return streamlines, inputPolyData

@@ -7,9 +7,13 @@
 #specify list of subjects
 if [ ! -z $1 ]
 then
-	subjectList="$1"
+	if [ -f $1 ]; then
+		subjectList=`cat $1`
+	else 
+		subjectList="$1"
+	fi
 else
-	subjectList=`cat control_ID.txt`
+	subjectList=`cat subjects.txt`
 fi
 
 echo $subjectList
@@ -139,7 +143,7 @@ do
 	echo '#->'$cmd
 	eval $cmd	
 
-	cmd="antsApplyTransforms -d 3 -i $inputDir/$T1 -r $inputDir/$T1 -n BSpline -o $outDir/${outFinal}_invDeformed_DWS.nii.gz 		-t [${outRoot}0GenericAffine.mat,1] -t ${outRoot}1InverseWarp.nii.gz"
+	cmd="antsApplyTransforms -d 3 -i $inputDir/$T1 -r $inputDir/$MDWI -n BSpline -o $outDir/${outFinal}_invDeformed_DWS.nii.gz 		-t [${outRoot}0GenericAffine.mat,1] -t ${outRoot}1InverseWarp.nii.gz"
 	echo '#->'$cmd
 	eval $cmd	
 done

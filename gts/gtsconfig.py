@@ -1,11 +1,14 @@
 import json
 from jsoncomment import JsonComment
 from os import getcwd
+from os.path import abspath
+from os import path
 import gtsroi
 
 class GtsConfig(object):
-    _CONFIG={}
-
+    _CONFIG={
+    'tract_time_log_file' : 'tract_time_stats.csv'
+    }
 
     def __init__(self,conf_file=""):
         self._SIMULATE = False
@@ -33,11 +36,14 @@ class GtsConfig(object):
         else:
             self.loadFromJson(conf_file)
             self.root = getcwd()
-            self.orig_path = self.root+'/'+self.orig_path
-            self.preprocessed_path = self.root+'/' + self.preprocessed_path
-            self.T1_processed_path = self.root + '/' + self.T1_processed_path
-            self.processed_path = self.root+'/'+self.processed_path
-            self.tractography_path_full = self.root+'/'+self.tractography_path
+            self.orig_path = abspath(self.orig_path)
+            self.preprocessed_path = abspath(self.preprocessed_path)
+            self.T1_processed_path = abspath(self.T1_processed_path)
+            self.processed_path = abspath(self.processed_path)
+            self.ind_roi_path = abspath(self.ind_roi_path)
+            self.tractography_path_full = abspath(self.tractography_path)
+            basename = conf_file.split('.')[0]
+            self.tract_time_log_file = path.join(self.root, basename+'_'+self.tract_time_log_file)
 
             if not self.manual_subjects:
                 with open(self.subjects_file, "r") as f:
@@ -45,12 +51,8 @@ class GtsConfig(object):
 
             print self.subjects            
 
-        self.rois_def = {k:gtsroi.GtsRoi(k, v, global_config=self) for (k,v) in self.rois_def.iteritems()}
-
-
-
-
-
+        if 'rois_def' in self._CONFIG:
+            self.rois_def = {k:gtsroi.GtsRoi(k, v, global_config=self) for (k,v) in self.rois_def.iteritems()}
 
     def __getattr__(self,var):
         try:

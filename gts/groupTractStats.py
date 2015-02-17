@@ -11,8 +11,8 @@ import json
 import argparse
 import numpy as np
 import shutil
-import nrrd
 from glob import glob
+import os
 from os import getcwd
 from os import path
 from os import chdir
@@ -83,6 +83,9 @@ class GroupTractStats:
     def _d(self, subj, basename, ref=""):
         return getGtsFilename(self.config, subj, basename, ref, ext=False)
 
+    def runPerSubject(self, func):
+    	for subj in self.config.subjects:
+    		func(subj, self.config)
 
     def projectRoiT1TemplateToSingle(self):
         """ Project averaged T1 ROI to indidivual T1 space
@@ -101,10 +104,12 @@ class GroupTractStats:
             print subj
             subj_T1 = orig_path+'/'+subj+'_T1'+imgext
 
-            subj_pref = T1_processed_path+'/'+self._g(subj, ext=False)
+            #subj_pref = T1_processed_path+'/'+self._g(subj, ext=False)
+            subj_pref = T1_processed_path+'/'+c.prefix+subj+'_'
 
-            warpAffix = 'InverseWarp.nii.gz'
-            affAffix = 'Affine.txt'
+            ants_prefix= c.group_prefix
+            warpAffix = ants_prefix+'InverseWarp.nii.gz'
+            affAffix = ants_prefix+'Affine.txt'
 
             if len(glob(subj_pref+'*'+affAffix)) == 0:
                 # can't find affine.txt, assume it's mat
@@ -121,7 +126,7 @@ class GroupTractStats:
 
                 basename = filename.split('.')[0]
                 roi = c.template_roi_path+'/'+basename
-                roiName = basename(roi).rsplit('.')[0]
+                roiName = path.basename(roi).rsplit('.')[0]
                 inName = roi+imgext
                 outName = self._g(subj, roiName)
                 output = ind_roi_path+'/'+outName
@@ -149,10 +154,10 @@ class GroupTractStats:
         ind_roi_path = c.ind_roi_path
 
         rois = []
-        for k,v in c.template_def:
+        for k in c.template_def:
             if k=='reference':
                 continue
-            rois.append(v)
+            rois.append(c.template_def[k].split('.')[0])
 
 
 
@@ -214,7 +219,6 @@ class GroupTractStats:
                 inName = input_path+'/'+self._g(subj, name)
                 outName = self._d(subj, name)
                 output = output_path+'/'+outName
-
 
 
                 self.ants_apply_transform_t1_to_dwi(subj, inName, output, **kwargs)
@@ -281,16 +285,18 @@ class GroupTractStats:
         affix = c.affix
         processed_path = c.T1_processed_path
 
-        subj_pref = self._g(subj,ext=False)
+        #subj_pref = self._g(subj,ext=False)
+        subj_pref = c.prefix+subj+'_'
 
         ref = '%s_T1.nii.gz' % subj
         if reference=='average':
-            ref = 'con_average.nii.gz'
+            ref = c.group_template_file
         ref = orig_path+'/'+ref
 
-        invWarpAffix = 'InverseWarp.nii.gz'
-        warpAffix = 'Warp.nii.gz'
-        affAffix = 'Affine.txt'
+        group_prefix = c.group_prefix
+        invWarpAffix = group_prefix+'InverseWarp.nii.gz'
+        warpAffix = group_prefix+'Warp.nii.gz'
+        affAffix = group_prefix+'Affine.txt'
 
         if len(glob(processed_path+'/'+subj_pref+'*'+affAffix)) == 0:
             # can't find affine.txt, assume it's mat
@@ -334,15 +340,15 @@ class GroupTractStats:
 
                 #cmd="slicerFileConvert.sh -i vol0000.nii.gz -o %s/%s_b0.nii.gz" % (orig_path, subj)
                 #
-            cmd="fslmaths Motion_Corrected_DWI_nobet.nii.gz -Tmean %s" % (c.orig_path+'/'+subj+'_mdwi')
+            cmd="fslmaths Motion_Corrected_DWI_nobet.nii.gz -Tmean %s" % (c.orig_path+'/'+subj+'_MDWI')
             exec_cmd(cmd)
 
             cmd="slicerTensorScalar.sh -i DWI_CORRECTED.nhdr -p %s_ -d %s" % (subj,c.orig_path)
-            exec_cmd(cmd)
+            exec_cmd(cmd, truncate=True)
 
             chdir(root_path)
 
-            shutil.copyfile('T1s/orig/'+subj+'.nii.gz', c.orig_path+'/'+subj+'_T1.nii.gz')
+            #shutil.copyfile('T1s/orig/'+subj+'.nii.gz', c.orig_path+'/'+subj+'_T1.nii.gz')
 
         chdir(root_path)
 
@@ -353,6 +359,8 @@ class GroupTractStats:
             Args:
                 bet: The -f parameter value for FSL bet command. Default is 0.1.
         """
+        print '-----------------------------runAntsDwiToT1------------------------------------'        
+
         c = self.config
         preprocessed_path = c.preprocessed_path
         root_path = getcwd()
@@ -360,9 +368,9 @@ class GroupTractStats:
 
         betfiles = ""
         #_SIMULATE = True
+
         for subj in c.subjects:
             chdir(orig_path)
-            print '-----------------------------runAntsDwiToT1------------------------------------'
             print getcwd()
 
             cmd='bet2 %s_T1 %s_T1_bet -f %s ' % (subj, subj, bet)
@@ -370,7 +378,7 @@ class GroupTractStats:
 
             _SIMULATE = True
 
-            cmd='bet2 %s_mdwi %s_MDWI_bet -f %s' % (subj, subj, bet)
+            cmd='bet2 %s_MDWI %s_MDWI_bet -f %s' % (subj, subj, bet)
             exec_cmd(cmd)
 
             # erode the mask to remove fringe skull intensities in FA
@@ -383,10 +391,10 @@ class GroupTractStats:
             _SIMULATE = False
 
             #matchSpacing("%s_MDWI_bet.nii.gz"%subj, "%s_T1_bet.nii.gz"%subj, "%s_T1_bet.nii.gz"%subj)
-
-            cmd='mv *bet* %s' % (preprocessed_path)
-
-            exec_cmd(cmd)
+            bet_files = glob('*bet*')
+            for i in bet_files:
+                cmd='mv %s %s' % (i, preprocessed_path)
+                exec_cmd(cmd)
 
             betfiles += "%s_T1_bet.nii.gz " % subj
             betfiles += "%s_MDWI_bet.nii.gz " % subj
@@ -397,7 +405,7 @@ class GroupTractStats:
         exec_cmd(cmd)
 
         chdir(root_path)
-        antsparam = ""
+        antsparam = c.subjects_file
         if c.manual_subjects:
             antsparam = " ".join(c.subjects)
 
@@ -426,6 +434,11 @@ class GroupTractStats:
 
         res = []
 
+        # start a new time log header
+        TRACT_TIME_LOG = c.tract_time_log_file
+        with open(TRACT_TIME_LOG, 'w') as fp:
+            fp.write('subject,method,roi,time\n')        
+
 
         for subj in c.subjects:
             print '-----------------------------------------------------------------'
@@ -433,10 +446,14 @@ class GroupTractStats:
             subjdir = tractography_path+'/'+subj+'/'
             subjRes = { 'name' : subj }
 
-            if not path.isdir(subjdir):
+            if not path.isdir(subjdir) or reorganize_paths:
                 ## setup subject tractography directory
 
-                mkdir(subjdir)
+                try:
+                    mkdir(subjdir)
+                except OSError:
+                    #file already exists
+                    pass
 
 
                 subj_source_path = path.join(dwi_path,subj)
@@ -446,9 +463,9 @@ class GroupTractStats:
                 chdir(dwi_folder+'/nifti')
 
                 subj_dwi_source_path_abs = getcwd()
-                chdir(subjdir)
+                chdir(orig_path)
 
-                cmd = 'ln -s %s dwi' % (subj_dwi_source_path_abs)
+                cmd = 'ln -s %s %s' % (subj_dwi_source_path_abs, path.join(subjdir, 'dwi'))
                 exec_cmd(cmd)
 
 
@@ -463,25 +480,29 @@ class GroupTractStats:
                 cmd = 'slicerDwiFileConvert.sh %s %s' % (path.join(subj_dwi_source_path_abs, dwi_file), slicer_comp_file)
                 exec_cmd(cmd)
 
+                
+                # This is required as XST cannot correct read space directions other than RAS                             
+                from pynrrd import *
                 ras_corrected_file = subj+'_dwi_ras.nhdr'
-                reader = nrrd.NrrdReader()
-                header = reader.getFileAsHeader(slicer_comp_file)
+                reader = NrrdReader()
+                header, b = reader.getFileAsHeader(slicer_comp_file)
                 # once slicer reads the file, it will convert the file it's a space that it understands                
                 header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
-                writer = nrrd.NrrdWriter()
+                writer = NrrdWriter()
                 writer.write(header, subjdir+'/'+ras_corrected_file)
+                
 
                 #dwiCorrectRas(dwi_file+'.nhdr', subj+'_test.nhdr')
 
 
                 # generate Tensor, FA, RD, AD, MD maps
-                cmd="slicerTensorScalar.sh -i %s -p %s_ -d %s" % (ras_corrected_file, subj,subjdir)
+                cmd="slicerTensorScalar.sh -i %s -p %s_ -d %s" % (slicer_comp_file, subj,subjdir)
 
                 exec_cmd(cmd)
 
 
                 # copy t1s over
-                t1i = self._g(subj, 'invDeformed', 'DWS', prefix=False, ext=False)
+                t1i = self._g(subj, 'invDeformed', 'DWS')
                 t1o = self._g(subj, 'T1', 'dwi', prefix=False)
                 shutil.copyfile(processed_path+'/'+t1i, subjdir+'/'+t1o)
 
@@ -489,8 +510,8 @@ class GroupTractStats:
                 t1o = self._g(subj, 'T1', prefix=False)
                 shutil.copyfile(processed_path+'/'+t1i, subjdir+'/'+t1o)
 
-                # copy over mdwi files, this should be in preprocessing step
-                t1i = self._g(subj, 'mdwi', prefix=False)
+                # copy over MDWI files, this should be in preprocessing step
+                t1i = self._g(subj, 'MDWI', prefix=False)
                 t1o = t1i
                 shutil.copyfile(orig_path+'/'+t1i, subjdir+'/'+t1o)
 
@@ -513,7 +534,6 @@ class GroupTractStats:
             print 'copy ROI file to '+subjdir
 
             # copy t1 projected roi files to individual tractography folder    
-
             rois = c.rois_def
             for k, roi in rois.iteritems():
                 if roi.type == 'from_template':
@@ -534,7 +554,9 @@ class GroupTractStats:
 
             ############ Pass on methods list and generate tracts
 
+            import time
             from gtstractography import TractographyMethod
+                            
             seeds = c.seeds_def
             for k,seed_map in seeds.iteritems():
                 label_str = k
@@ -546,8 +568,16 @@ class GroupTractStats:
 
                     print '\n-- PERFORM %s' % method_label
                     method = TractographyMethod.factory(subj, seed_map, imethod, c)
+                    start_time = time.time()
                     fiber_name = method.run()
+                    stop_time = time.time()
+                    elapsed_time = stop_time - start_time
 
+                    report = '%s,%s,%s,%.9f' % (subj, method_label, label_str, elapsed_time)
+
+                    with open(TRACT_TIME_LOG, 'a') as fp:
+                        fp.write(report+'\n')                        
+                    
 
                     #     if not mrtrix_has_recompute:
                     #         recompute = True
@@ -708,7 +738,7 @@ class GroupTractStats:
 
                         subj_vols = {'FA':['%s_FA.nii.gz' % volume_base, labelmap_dwi],
                             'T1': ['%s_T1_dwi.nii.gz' % volume_base, labelmap_t1],
-                            'MDWI': ['%s_mdwi.nii.gz' % volume_base, labelmap_dwi] }
+                            'MDWI': ['%s_MDWI.nii.gz' % volume_base, labelmap_dwi] }
 
                         fname = f
                         if tmethod=='xst':
@@ -904,7 +934,7 @@ class GroupTractStats:
                         # dwi -> t1 projection first, file stay in the tractography dirs
                         trans += ' '+self.ants_apply_transform_t1_to_dwi(subj, den_file, den_t1_file, reference='t1', inverse=True, just_transform_param=True)
 
-                        ref = 'con_average.nii.gz' # % subj
+                        ref = c.group_template_file # % subj
                         ref = c.orig_path+'/'+ref
                         interp = 'NearestNeighbor'
 
@@ -966,11 +996,20 @@ class GroupTractStats:
                     del img
                     del idata
                 data_pool = np.divide(data_pool,len(r))
+
+                filebasename = self._g(label, affix, 'average', prefix=False, ext=False)
+
+                import imagescore as imgs
+                figure_file = filebasename+'_figure.png'
+                figure_file = path.join(c.processed_path, figure_file)
+                score = imgs.get_score(data_pool, figure=figure_file, title=label)
+                
+
                 nifti = nib.Nifti1Image(data_pool, refimg.get_affine())
-                conj_file = path.join(c.processed_path, label+'_%s_average.nii.gz' % affix)
+                conj_file = path.join(c.processed_path, filebasename+'.nii.gz')
                 nib.save(nifti, conj_file)
                 print '# Save to %s' % conj_file
-                conj_files_list.append((conj_file,method,seed_name))
+                conj_files_list.append((conj_file,method,seed_name, score))
                 del data_pool
                 gc.collect()
 
@@ -985,11 +1024,23 @@ class GroupTractStats:
 
     def conjunction_to_images(self, file_list, slice_indices=(0,0,0), name='', bg_file='' , auto_slice=True,dry_run=False):
         import vol2iso_viz
+        import os
+
+        def get_slicing(focus_settings, skey):
+                if not isinstance(focus_settings, dict):
+                    return focus_settings
+                else:
+                    if skey in slicing_focus:
+                        return focus_settings[skey]
+                    if 'all' in slicing_focus:
+                        return focus_settings['all']
+                return None
+                        
         c = self.config
 
         imgpath = c.processed_path+'/images/conjunctions'
         if not path.isdir(imgpath):
-            os.mkdir(imgpath)
+            os.makedirs(imgpath)
         basename=''
         all_imgs = []
         for i in file_list:            
@@ -1000,7 +1051,7 @@ class GroupTractStats:
             group = {'method':i[1], 'seed':i[2]}            
             seed_conf = c.seeds_def[seed_name]
             if 'slicing_focus' in seed_conf:
-                slice_indices = seed_conf['slicing_focus']
+                slicing_focus = seed_conf['slicing_focus']
                 auto_slice=False
 
             fig_base = path.basename(filename).split('.')[0]
@@ -1011,6 +1062,7 @@ class GroupTractStats:
             fig_name = path.join(imgpath,fig_name)
             print fig_name
             if not dry_run:
+                slice_indices = get_slicing(slicing_focus, 'axial')
                 vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='z_axes', auto_slice=auto_slice, slice_index=slice_indices[2], save_fig=fig_name)
 
             fig_name = self._g(fig_base, name, 'coronal.png', prefix=False, ext=False)
@@ -1018,20 +1070,23 @@ class GroupTractStats:
             fig_name = path.join(imgpath,fig_name)            
             print fig_name
             if not dry_run:
+                slice_indices = get_slicing(slicing_focus, 'coronal')
                 vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='y_axes', auto_slice=auto_slice, slice_index=slice_indices[1],save_fig=fig_name)
 
-            fig_name = self._g(fig_base, name, 'sag.png', prefix=False, ext=False)
+            fig_name = self._g(fig_base, name, 'saggital.png', prefix=False, ext=False)
             imgs.append(fig_name)            
             fig_name = path.join(imgpath,fig_name)            
             print fig_name
             if not dry_run:
+                slice_indices = get_slicing(slicing_focus, 'saggital')
                 vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='x_axes', auto_slice=auto_slice, slice_index=slice_indices[0],save_fig=fig_name)
 
-            fig_name = self._g(fig_base, name, 'isometric.png', prefix=False, ext=False)
+            fig_name = self._g(fig_base, name, 'perspective.png', prefix=False, ext=False)
             imgs.append(fig_name)            
             fig_name = path.join(imgpath,fig_name)            
             print fig_name
             if not dry_run:
+                slice_indices = get_slicing(slicing_focus, 'persp')
                 vol2iso_viz.vol2iso_viz(filename, bg_file, plane_orientation='iso', auto_slice=auto_slice, slice_index=slice_indices[2],save_fig=fig_name)
             
             group['images'] = imgs
@@ -1063,7 +1118,7 @@ class GroupTractStats:
         # compile a matrix of images
 
         bgOpt = group_names
-        orientOpt = ['axial', 'coronal', 'sag', 'isometric']
+        orientOpt = ['axial', 'coronal', 'saggital', 'perspective']
 
 
         res = (1024,768)
@@ -1096,8 +1151,9 @@ class GroupTractStats:
                 max_label_size=draw.textsize(longest_label, font=f)
 
                 label_padding = max_label_size[0]+50
+                label_padding_y = max_label_size[1]+50
                 img_width = res[0]*img_matrix.shape[0] + label_padding
-                img_height = res[1]*img_matrix.shape[1]
+                img_height = res[1]*img_matrix.shape[1] + label_padding_y
                 new_img = Image.new('RGB', (img_width, img_height))
 
 
@@ -1105,10 +1161,11 @@ class GroupTractStats:
                 for (x,y), val in np.ndenumerate(img_matrix):
                     print x,y,val
                     xpos = res[0]*x + label_padding
-                    ypos = res[1]*y
+                    ypos = res[1]*y + label_padding_y
                     im = Image.open(val)
                     new_img.paste(im, (xpos, ypos))
 
+                # draw method labels on left side
                 for i in range(0,num_methods):
                     text = methods[i]
                     print text
@@ -1119,6 +1176,7 @@ class GroupTractStats:
                     text_size=draw.textsize(text, font=f)
                     draw.text((xpos,ypos-text_size[1]/2), text, fill="white", font=f)
 
+                # draw orientation texts at top
                 for i,orient in enumerate(orientOpt):
                     text = orient 
                     print text

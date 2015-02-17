@@ -11,7 +11,9 @@ class Mrtrix(gts.TractographyMethod):
     def compute_tensors(self):
         os.chdir('dwi')
         # calculate CSD estimation
-        cmd = 'rm dwi.mif; mrconvert Motion_Corrected_DWI_nobet.nii.gz dwi.mif'
+        cmd = 'rm dwi.mif'
+        exec_cmd(cmd)
+        cmd = 'mrconvert Motion_Corrected_DWI_nobet.nii.gz dwi.mif'
         exec_cmd(cmd)
         cmd = 'mrtrix_grad.py -v newdirs.dat -a %s.bval -o dwi.grad' % (self.subject)
         exec_cmd(cmd)

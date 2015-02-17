@@ -108,8 +108,8 @@ class TractographyMethod(object):
         import nibabel as nib
         import numpy as np
         data = None
-        aff = None
-        for i in maps_list:            
+        aff = None        
+        for i in maps_list:         
             filename = path.join(self.path, i['filename'])
             print filename
             ndata, aff = self.extract_label_from_image(filename, i['label'])

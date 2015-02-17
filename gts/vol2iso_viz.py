@@ -6,7 +6,6 @@ import nibabel as nib
 import sys
 from mayavi import mlab
 from scipy import interpolate as sinterp
-from scipy.ndimage.measurements import center_of_mass
 
 def run(options, args):
 	vol2iso_viz(args[0], options.bg, show_label=options.show_label, slice_index=options.slice_index, plane_orientation=options.orientation, save_fig=options.output)
@@ -44,7 +43,8 @@ def vol2iso_viz(vol_file, bg_file, bgcolor=(0,0,0), bgslice='', auto_slice=True,
 		src.update_image_data = True	
 		return src, data
 
-
+	if save_fig:
+		mlab.options.offscreen=True
 	mlab.figure(bgcolor=bgcolor, size=size)
 
 	# try tp turn on depth peeling
@@ -60,19 +60,43 @@ def vol2iso_viz(vol_file, bg_file, bgcolor=(0,0,0), bgslice='', auto_slice=True,
 	# scene.renderer.render_window.print_traits()
 
 
+
+
+	src, data = getNiftiAsScalarField(vol_file)
+
+	iso = mlab.pipeline.iso_surface(src, opacity=0.2, contours=10, vmin=0.2, vmax=1.0)
+	iso
+	if show_label==1:
+		mlab.colorbar(object=iso, nb_labels=10, nb_colors=10, orientation='vertical')
+
+
+	if plane_orientation=='z_axes':
+		mlab.gcf().scene.camera.parallel_projection=True
+		mlab.view(azimuth=0, elevation=180, distance='auto', focalpoint='auto')		
+	elif plane_orientation=='x_axes':
+		mlab.gcf().scene.camera.parallel_projection=True
+		mlab.view(azimuth=180, elevation=90, distance='auto', focalpoint='auto')		
+	elif plane_orientation=='y_axes':
+		mlab.gcf().scene.camera.parallel_projection=True
+		mlab.view(azimuth=90, elevation=90, distance='auto', focalpoint='auto')		
+	else:
+		mlab.gcf().scene.isometric_view()
+
+
 	if bg_file != '':
 		mrsrc, data = getNiftiAsScalarField(bg_file)
 		orie = plane_orientation
 		if plane_orientation=='iso':
-			orie = 'z_axes'		
+			orie = 'z_axes'
 
+		# from scipy import stats
+		# data = stats.threshold(data, threshmin=0.5, threshmax=1, newval=0)			
+		# print data.shape
+
+		from scipy.ndimage.measurements import center_of_mass, maximum_position
+		com = maximum_position(data)
+		print '# max pos = ',com
 		if auto_slice:
-			from scipy import stats
-			data = stats.threshold(data, threshmin=0.5, threshmax=1, newval=0)			
-			print data.shape
-
-			com = center_of_mass(data)
-			print '# center of mass = ',com
 			if orie=='x_axes':
 				slice_index = com[0]
 			elif orie=='y_axes':
@@ -82,31 +106,27 @@ def vol2iso_viz(vol_file, bg_file, bgcolor=(0,0,0), bgslice='', auto_slice=True,
 			else:
 				slice_index = com[2]					
 
-		mlab.pipeline.image_plane_widget(mrsrc, opacity=0, plane_orientation=orie, slice_index=int(slice_index), colormap='black-white', line_width=0)
+		opacity=0.5
+		slice_index = int(slice_index)
+		# auto flip z-index to below center
+		# if plane_orientation=='iso':
+		# 	opacity=0.5
+		# 	center = data.shape[2]/2
+		# 	if slice_index > center:
+		# 		d = abs(center-slice_index)
+		# 		slice_index = center-d
+		# 	slice_index = com[2]
+
+		mlab.pipeline.image_plane_widget(mrsrc, opacity=opacity, plane_orientation=orie, slice_index=int(slice_index), colormap='black-white', line_width=0, reset_zoom=False)
 
 		if show_outline:
 			mlab.outline()
 
-	src, data = getNiftiAsScalarField(vol_file)
 
-	iso = mlab.pipeline.iso_surface(src, opacity=0.2, contours=10, vmin=0.2, vmax=1.0)
-	if show_label==1:
-		mlab.colorbar(object=iso, nb_labels=10, nb_colors=10, orientation='vertical')
+	
 
 
 
-
-	mlab.gcf().scene.camera.parallel_projection=True
-
-
-	if plane_orientation=='z_axes':
-		mlab.view(azimuth=0, elevation=180, distance='auto', focalpoint='auto')		
-	elif plane_orientation=='x_axes':
-		mlab.view(azimuth=180, elevation=90, distance='auto', focalpoint='auto')		
-	elif plane_orientation=='y_axes':
-		mlab.view(azimuth=90, elevation=90, distance='auto', focalpoint='auto')		
-	else:
-		mlab.gcf().scene.isometric_view()
 
 	if save_fig:
 		mlab.savefig(save_fig)

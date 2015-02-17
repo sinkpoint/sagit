@@ -27,8 +27,7 @@ class Xst(slicer.Slicer3):
         label = seed_info['label']
         seed_file = seed_basename+label
         cmd="tend2 fiber -i %s -dwi -wspo -ns seeds/%s.txt -o %s -ap -v 2 -t 2evec0 -k cubic:0.0,0.5 -n rk4 %s" % (dwi_file, seed_file, unfiltered_file, params)
-
-        exec_cmd(cmd, truncate=True, watch='stderr')
+        exec_cmd(cmd, truncate=False, watch='stderr')
 
         #convert vtk to vtp files to filter
         from vtk import vtkPolyDataReader

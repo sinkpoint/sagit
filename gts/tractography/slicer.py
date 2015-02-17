@@ -55,7 +55,8 @@ class Slicer3(gts.TractographyMethod):
         if 'params' in self.method_config:
             streamparam = self.method_config['params']
 
-        cmd = 'slicerTractography.sh --label %s %s dti.nhdr  %s  %s' % (seed_info['label'], params, seed_file, unfiltered_file)
+        dti_file = self.subject+'_dti.nhdr'
+        cmd = 'slicerTractography.sh --label %s %s %s %s %s' % (seed_info['label'], params, dti_file, seed_file, unfiltered_file)
         exec_cmd(cmd, truncate=True)
 
         vreader = vtkXMLPolyDataReader()
