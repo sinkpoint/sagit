@@ -1,6 +1,5 @@
 import numpy as np
 import nibabel as nib
-import argparse
 import os.path
 import sys
 from multiprocessing import Pool
@@ -32,7 +31,8 @@ def file_to_streamline(filename):
     ext = os.path.splitext(filename)
 
     if ext[1]=='.vtk':
-        return vtkToStreamlines(filename)
+        streams, vtkobj = vtkToStreamlines(filename)
+        return streams
     elif ext[1]=='.tck':
         print filename
         hdr, streamlines = mrt.read_mrtrix_tracks(filename, as_generator=False)
@@ -53,6 +53,11 @@ def streamlines_to_density(ref_image, streamlines):
     outData = np.zeros(imgdim)
     outBinData = np.zeros(imgdim)
     outFibData = np.zeros(imgdim)
+
+    zooms = ref_image.get_header().get_zooms()
+    vol_volume = np.prod(zooms)
+    print '# vol dimensions (mm): ',zooms,' vol:',vol_volume
+    
 
     print '# of streamlines: %d' % len(streamlines)
     if len(streamlines) > 0:
@@ -80,8 +85,16 @@ def streamlines_to_density(ref_image, streamlines):
         pt_ijk3_unique = np.unique(b).view(pt_ijk.dtype).reshape(-1, pt_ijk.shape[1])
         pt_ijk3_unique = pt_ijk3_unique[:,:3]
 
+        ix = pt_ijk3_unique[:,0]
+        ix[ix>=imgdim[0]] = imgdim[0]-1
 
-        outBinData[pt_ijk3_unique[:,0],pt_ijk3_unique[:,1],pt_ijk3_unique[:,2]] = 1
+        jx = pt_ijk3_unique[:,1]
+        jx[jx>=imgdim[1]] = imgdim[1]-1
+
+        kx = pt_ijk3_unique[:,2]
+        kx[kx>=imgdim[2]] = imgdim[2]-1
+
+        outBinData[ix, jx, kx] = 1
 
         # output binary tract mask
 
@@ -89,9 +102,15 @@ def streamlines_to_density(ref_image, streamlines):
             p = np.ravel(i)        
             #vals = getIjkDensity(streamlines, ref_image, i) * 100
             #outData[i[0],i[1],i[2]] = vals[0]
+            if p[0] >= imgdim[0]:
+                p[0] = imgdim[0]-1
+            if p[1] >= imgdim[1]:
+                p[1] = imgdim[1]-1                
+            if p[2] >= imgdim[2]:
+                p[2] = imgdim[2]-1                
             outFibData[p[0],p[1],p[2]] += 1        
             
-        outData = np.divide(outFibData, len(streamlines))
+        outData = np.divide(outFibData, vol_volume)
 
     outImage = nib.Nifti1Image( outData, ref_image.get_affine() )
     outFibImage = nib.Nifti1Image(outFibData, ref_image.get_affine())
@@ -174,13 +193,14 @@ def debug( msg ):
         print msg
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Converts vtk tracts to nifti density image")
-    parser.add_argument("-f", "--in_fiber", required=True, dest="in_fiber",help="Input fiber bundle in vtk")
-    parser.add_argument("-m", "--mask", dest="mask",help="Integer binary mask")
-    parser.add_argument("-r", "--reference", dest="ref",help="Reference image to use as image space")
-    parser.add_argument("-s", "--resolution", dest="res",help="If no reference image, then the resolution of voxel, default=1")
-    parser.add_argument("-o", "--output", dest="out",help="Output nifti filename")
+    from optparse import OptionParser
+    parser = OptionParser(usage="Converts vtk tracts to nifti density image")
+    parser.add_option("-f", "--in_fiber", dest="in_fiber",help="Input fiber bundle in vtk")
+    parser.add_option("-m", "--mask", dest="mask",help="Integer binary mask")
+    parser.add_option("-r", "--reference", dest="ref",help="Reference image to use as image space")
+    parser.add_option("-s", "--resolution", dest="res",help="If no reference image, then the resolution of voxel, default=1")
+    parser.add_option("-o", "--output", dest="out",help="Output nifti filename")
 
-    args =  parser.parse_args()
+    (option, args) =  parser.parse_args()
 
-    run(args)
+    run(option)

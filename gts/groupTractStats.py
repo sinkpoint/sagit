@@ -437,7 +437,7 @@ class GroupTractStats:
         # start a new time log header
         TRACT_TIME_LOG = c.tract_time_log_file
         with open(TRACT_TIME_LOG, 'w') as fp:
-            fp.write('subject,method,roi,time\n')        
+            fp.write('subject,method,roi,filter,time\n')        
 
 
         for subj in c.subjects:
@@ -568,15 +568,27 @@ class GroupTractStats:
 
                     print '\n-- PERFORM %s' % method_label
                     method = TractographyMethod.factory(subj, seed_map, imethod, c)
+
                     start_time = time.time()
-                    fiber_name = method.run()
+                    fiber_name = method.run(filter=False)
                     stop_time = time.time()
                     elapsed_time = stop_time - start_time
 
-                    report = '%s,%s,%s,%.9f' % (subj, method_label, label_str, elapsed_time)
+                    report = '%s,%s,%s,unfiltered,%.9f' % (subj, method_label, label_str, elapsed_time)
 
                     with open(TRACT_TIME_LOG, 'a') as fp:
                         fp.write(report+'\n')                        
+
+
+                    start_time = time.time()
+                    fiber_name = method.run(filter=True)
+                    stop_time = time.time()
+                    elapsed_time = stop_time - start_time
+
+                    report = '%s,%s,%s,filtered,%.9f' % (subj, method_label, label_str, elapsed_time)
+
+                    with open(TRACT_TIME_LOG, 'a') as fp:
+                        fp.write(report+'\n')                                                
                     
 
                     #     if not mrtrix_has_recompute:

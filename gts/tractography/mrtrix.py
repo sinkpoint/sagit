@@ -23,7 +23,7 @@ class Mrtrix(gts.TractographyMethod):
 
 
 
-    def run(self):
+    def run(self, filter=True):
         def convert_to_mif(input):
             basename = input.split('.')[0]
             cmd = 'mrconvert -force %s.nii.gz -datatype Bit %s.mif' % (basename,basename)
@@ -70,29 +70,24 @@ class Mrtrix(gts.TractographyMethod):
 
         streamparam += " -seed_image %s " % (seed_file)
 
-        output_tck = '%s.tck' % fiber_basename
-        cmd = 'tckgen  %s  dwi/CSD8.mif  %s' % (streamparam, output_tck)
-        exec_cmd(cmd)
+        if not filter:
+            output_tck = '%s.tck' % fiber_basename
+            cmd = 'tckgen  %s  dwi/CSD8.mif  %s' % (streamparam, output_tck)
+            exec_cmd(cmd)
+            cmd = 'tracks2vtk %s.tck %s.vtk' % (fiber_basename, fiber_basename)
+            exec_cmd(cmd)
+        else:
+            output_tck = '%s_filtered.tck' % fiber_basename
+            cmd = 'tckgen  %s %s %s dwi/CSD8.mif %s ' % (streamparam, include_param, exclude_param, output_tck)
+            exec_cmd(cmd)
+            cmd = 'tracks2vtk %s_filtered.tck %s_filtered.vtk' % (fiber_basename, fiber_basename)
+            exec_cmd(cmd)
 
+        # cmd = 'copyTensors.py -t dti.nhdr -f %s.vtk -o %s ' % (fiber_basename, output)
+        # #exec_cmd(cmd)
 
-
-        output_tck = '%s_filtered.tck' % fiber_basename
-        cmd = 'tckgen  %s %s %s dwi/CSD8.mif %s ' % (streamparam, include_param, exclude_param, output_tck)
-        exec_cmd(cmd)
-
-
-        cmd = 'tracks2vtk %s.tck %s.vtk' % (fiber_basename, fiber_basename)
-        exec_cmd(cmd)
-        cmd = 'tracks2vtk %s_filtered.tck %s_filtered.vtk' % (fiber_basename, fiber_basename)
-        exec_cmd(cmd)
-
-
-
-        cmd = 'copyTensors.py -t dti.nhdr -f %s.vtk -o %s ' % (fiber_basename, output)
-        #exec_cmd(cmd)
-
-        cmd = 'copyTensors.py -t dti.nhdr -f %s_filtered.vtk -o %s ' % (fiber_basename, output2)
-        #exec_cmd(cmd)
+        # cmd = 'copyTensors.py -t dti.nhdr -f %s_filtered.vtk -o %s ' % (fiber_basename, output2)
+        # #exec_cmd(cmd)
 
         self.reset_path()
         return output2

@@ -40,7 +40,7 @@ class Slicer3(gts.TractographyMethod):
 
         return include_file, exclude_file, seed_file        
 
-    def run(self):
+    def run(self, filter=True):
         self.goto_working_path()
 
         include_file, exclude_file, seed_file = self.prep_seed_files()
@@ -69,8 +69,10 @@ class Slicer3(gts.TractographyMethod):
         vwriter.SetFileName(output_file)
         vwriter.SetInput(polydata)
         vwriter.Write()
+        output = '%s_filtered.vtk' % fiber_basename
 
-        output = self.filter_step(unfiltered_file, include_file, exclude_file)
+        if filter:
+            output = self.filter_step(unfiltered_file, include_file, exclude_file)
 
         self.reset_path()
         return output

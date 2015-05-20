@@ -24,17 +24,16 @@ tracts_file = conf_name+'_tracts.txt'
 # gts.projectRoiT1TemplateToSingle()
 # gts.projectRoiT1ToDwi()
 
-tracts = gts.seedIndividualTracts(labels=[2],recompute=False,overwrite=True)
+# tracts = gts.seedIndividualTracts(labels=[2],recompute=False,overwrite=True)
 
-sys.exit(0)
 
 # with open(tracts_file, 'w') as outfile:
 # 	json.dump(tracts, outfile, sort_keys=True, indent=4, separators=(',', ': '))
 
-# with open(tracts_file, 'r') as fp:
-# 	tracts = json.load(fp)
+with open(tracts_file, 'r') as fp:
+	tracts = json.load(fp)
 
-# print tracts
+print tracts
 #gts.tracts_to_images(tracts)
 
 #gts.viewTracks()

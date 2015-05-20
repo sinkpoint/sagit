@@ -7,7 +7,7 @@ class Xst(slicer.Slicer3):
     def __init__(self, subj, seed_config, method_config, global_config):
         super(Xst, self).__init__(subj, seed_config, method_config, global_config)
 
-    def run(self):
+    def run(self, filter=True):
         self.goto_working_path()
         includes_file, excludes_file, seed_file = self.prep_seed_files()
         seed_info = self.get_seed_info()
@@ -44,7 +44,9 @@ class Xst(slicer.Slicer3):
         vwriter.SetInput(polydata)
         vwriter.Update()
         vwriter.Write()
-
-        output = self.filter_step(unfiltered_file, includes_file, excludes_file)
+        output = '%s_filtered.vtk' % fiber_basename
+        
+        if filter:
+            output = self.filter_step(unfiltered_file, includes_file, excludes_file)
         self.reset_path()
         return output
