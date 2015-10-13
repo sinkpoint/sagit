@@ -13,7 +13,7 @@ class Slicer3(gts.TractographyMethod):
         basename = os.path.basename(input).split('.')[0]
         ipath = os.path.split(input)[0]
         output = os.path.join(ipath,basename+'.nrrd')
-        cmd = 'slicerFileConvert.sh -i %s -o %s' % (input, output)    
+        cmd = 'slicerFileConvert.sh %s %s' % (input, output)    
         exec_cmd(cmd, display=False)        
 
         return output  

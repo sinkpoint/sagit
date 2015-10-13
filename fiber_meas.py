@@ -48,7 +48,7 @@ avg_d = np.zeros(3)
 #     d = np.array(line[-1]) - np.array(line[0])
 #     d = d / la.norm(d)
 #     avg_d += d
-#     avg_d /= la.norm(avg_d)   
+#     avg_d /= la.norm(avg_d)
 
 
 avg_com = np.zeros(3)
@@ -71,9 +71,10 @@ stl_ori = np.array([np.abs(tm.mean_orientation(l)) for l in streamlines])
 
 from mayavi import mlab
 
-fig = mlab.figure()
+fig = mlab.figure(bgcolor=(1.0,1.0,1.0))
 scene = mlab.gcf().scene
-
+fig.scene.render_window.aa_frames = 4
+mlab.draw()
 
 #scipy.io.savemat("1.mat",{'streamlines':streamlines})
 #need to transpose each stream array for AFQ in malab
@@ -120,7 +121,8 @@ scene = mlab.gcf().scene
 
 # streamlines = newlines
 
-qb = QuickBundles(streamlines, dist_thr=20.,pts=20)
+qb = QuickBundles(streamlines, dist_thr=40.,pts=50)
+# bundle_distance_mam
 
 centroids = qb.centroids
 clusters = qb.clusters()
@@ -130,8 +132,8 @@ avg_com = np.zeros(3)
 avg_mid = np.zeros(3)
 
 #unify centroid list orders to point in the same general direction
-for i, line in enumerate(centroids):   
-    print 'ori:',tm.mean_orientation(line) 
+for i, line in enumerate(centroids):
+    print 'ori:',tm.mean_orientation(line)
     d = np.array(line[-1]) - np.array(line[0])
     #print line[-1],line[0],d
     d = d / la.norm(d)
@@ -143,8 +145,29 @@ for i, line in enumerate(centroids):
     avg_d += d
 
 
+#sort centroids by length
+# max_cent_num = 2
+
+# centroids.sort(key=lambda x: len(x))
+# centroids = centroids[:max_cent_num]
+
+
+import scipy
+import scikits.bootstrap as bootstrap
+import numpy as np
+
+
+len_cent = len(centroids)
+fig, axes = plt.subplots(len_cent, sharex=True, sharey=True)
+pal = sns.color_palette("cubehelix", len_cent)
+
+plt.xlabel('Position Index')
+
 
 for ci, cent in enumerate(centroids):
+    print '---- centroid:'
+    print cent
+
     from scipy.cluster.vq import kmeans2
     ind = clusters[ci]['indices']
     cent_streams = streamlines[ind]
@@ -156,10 +179,32 @@ for ci, cent in enumerate(centroids):
     cid = np.ones(len(labels))
     d = {'FA':cent_scalars, 'position':labels}
     df = pd.DataFrame(data=d)
-    cent_stats = df.groupby('position').mean().FA.as_matrix()
-    sns.plt.figure()
-    sns.tsplot(cent_stats)
-    sns.plt.show(block=False)
+    grp = df.groupby('position')
+    #cent_stats = grp.FA.mean().as_matrix()
+    cent_stats = grp.FA.apply(lambda x:scipy.mean(x)).as_matrix()
+    cent_std = grp.FA.std().as_matrix()
+    # bootstrap 68% CI, or 1 standard deviation
+    #cent_ci = grp['FA'].apply(lambda x:bootstrap.ci(data=x, statfunction=scipy.mean, alpha=0.32, n_samples=1000))
+    #cent_ci = np.array(cent_ci.values.tolist())
+
+    print cent_stats
+    print cent_std
+    #print cent_ci
+
+    x = [i for i,v in enumerate(cent_stats)]
+    print x
+
+    mcolor = pal[ci]
+    print type(axes)
+    if type(axes) is np.ndarray:
+        cur_axe = axes[ci]
+    else:
+        cur_axe = axes
+    cur_axe.set_ylabel('FA')
+    cur_axe.plot(x, cent_stats, color=mcolor, alpha=0.8)
+    #plt.errorbar(x, cent_stats, yerr=cent_std, color=mcolor, label=u'Observations', alpha=0.6)
+    cur_axe.fill_between(x, cent_stats-cent_std, cent_stats+cent_std, alpha=0.1, color=mcolor)
+    #cur_axe.fill_between(x, cent_ci[:,0], cent_ci[:,1], alpha=0.2, color=mcolor)
 
 
 
@@ -167,14 +212,16 @@ for ci, cent in enumerate(centroids):
 # scene.renderer.set(use_depth_peeling=True,maximum_number_of_peels=4,occlusion_ratio=0.1)
     ran_colors = np.random.random_integers(255, size=(len(cent),4))
     ran_colors[:,-1] = 255
-    mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],labels, opacity=0.5,  mode='2dvertex')
-    #mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],cent_scalars, opacity=0.6, mode='2dvertex')
+    mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],labels, opacity=0.2, mode='2dvertex')
+    #mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],cent_scalars, opacity=0.6, mode='2dvertex')
 
     delta = len(cent) - len(cent_stats)
     if delta > 0:
         cent_stats = np.pad(cent_stats, (0,delta), mode='constant', constant_values=0)
     print len(cent),'=?=',len(cent_stats)
-    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_stats, tube_radius=1)
+    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], x, colormap='blue-red', tube_radius=0.1, opacity=1)
+    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_stats, tube_radius=0.6, opacity=0.5)
+    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_stats, color=mcolor, tube_radius=1.5, opacity=0.2)
     #myplot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], range(len(cent)), tube_radius=1, opacity=0.5)
 
     # print mypts.module_manager.scalar_lut_manager.lut.table.to_array()
@@ -200,6 +247,7 @@ for ci, cent in enumerate(centroids):
 # verts = np.concatenate(newlines, axis=0)
 # mlab.points3d(verts[:,0],verts[:,1],verts[:,2],scale_factor=0.05, mode='2dvertex')
 #mlab.points3d(avg_mid[0],avg_mid[1],avg_mid[2],color=(0,0,1), mode='axes',scale_factor=5)
+plt.show(block=False)
 mlab.show()
 
 

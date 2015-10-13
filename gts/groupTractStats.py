@@ -542,7 +542,7 @@ class GroupTractStats:
                     shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
                     roi_filebase = roi_file.split('.')[0]
 
-                    cmd="slicerFileConvert.sh -i %s -o %s " % (roi_file, roi_filebase+'.nhdr');
+                    cmd="slicerFileConvert.sh %s %s " % (roi_file, roi_filebase+'.nhdr');
                     exec_cmd(cmd, display=False)
 
                     roi_file = roi.get_filename(subj, ref='t1')

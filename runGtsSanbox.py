@@ -28,15 +28,15 @@ conj_files_list = basename+'_conj_files.txt'
 tracts = gts.seedIndividualTracts(labels=[2],recompute=False,overwrite=True)
 
 
-# with open(tracts_file, 'w') as outfile:
-#     json.dump(tracts, outfile, sort_keys=True, indent=4, separators=(',', ': '))
+with open(tracts_file, 'w') as outfile:
+    json.dump(tracts, outfile, sort_keys=True, indent=4, separators=(',', ': '))
 
-# with open(tracts_file, 'r') as fp:
-#     tracts = json.load(fp)
-# print tracts
+with open(tracts_file, 'r') as fp:
+    tracts = json.load(fp)
+print tracts
 
-# #gts.tracts_to_images(tracts)
-# gts.viewTracks()
+#gts.tracts_to_images(tracts)
+gts.viewTracks()
 
 
 # gts.tracts_to_density(tracts)
