@@ -1,11 +1,14 @@
+import nibabel as nib
+import numpy as np
 import os
 import os.path as path
 
+from tractography.mrtrix import Mrtrix
+from tractography.slicer import Slicer3
+from tractography.xst import Xst
+
 class TractographyMethod(object):
     def factory(subj, seed_config, method_config, global_config):
-        from tractography.mrtrix import Mrtrix
-        from tractography.slicer import Slicer3
-        from tractography.xst import Xst
 
         type = method_config['method']
 
@@ -82,8 +85,7 @@ class TractographyMethod(object):
 
 
     def extract_label_from_image(self, filename, label, name=None, binarize=True, save=False):
-        import nibabel as nib
-        import numpy as np
+
         img = nib.load(path.join(self.path, filename))
         data = img.get_data()        
         if binarize:
@@ -105,8 +107,7 @@ class TractographyMethod(object):
         Given a list of maps [{"name":"foo", "label":"1"},...]
         combine them into a single binarized mask and return roi object
         """
-        import nibabel as nib
-        import numpy as np
+
         data = None
         aff = None        
         for i in maps_list:         

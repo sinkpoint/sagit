@@ -1,6 +1,21 @@
-from pypeg2 import *
 import groupTractStats as gts
+import nibabel as nib
+import numpy as np
 import os
+import scipy.ndimage as simg
+import types
+
+from pyparsing import Forward
+from pyparsing import Group
+from pyparsing import Literal
+from pyparsing import ParseException
+from pyparsing import Suppress
+from pyparsing import Word
+from pyparsing import alphas
+from pyparsing import delimitedList
+from pyparsing import nums
+from pyparsing import oneOf
+from pypeg2 import *
 
 class GtsRoi(object):
     """
@@ -71,9 +86,7 @@ class GtsRoi(object):
             os.chdir(self.origin_path)
 
     def generate(self, subj_name, ref='dwi', filename=''):
-        import nibabel as nib
-        import numpy as np
-        import scipy.ndimage as simg
+
 
         # image functions, always return (filename, associated_label(default to 1))
         def get_data(param_tuple):
@@ -138,7 +151,6 @@ class GtsRoi(object):
             Parse the image processing expression, recursively traverse a nested list that 
             describes it, and execute it.
             """
-            import types
             print parsed
             if isinstance(parsed, list):
                 func_name = parsed[0]
@@ -166,8 +178,7 @@ class GtsRoi(object):
                     return None
 
 
-        from pyparsing import nums, oneOf, Word, Literal, Suppress, alphas
-        from pyparsing import ParseException, Forward, Group, delimitedList
+
 
         self.goto_working_path(subj_name)
          

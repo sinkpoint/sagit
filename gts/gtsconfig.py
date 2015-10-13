@@ -1,9 +1,10 @@
+import gtsroi
 import json
+
 from jsoncomment import JsonComment
 from os import getcwd
-from os.path import abspath
 from os import path
-import gtsroi
+from os.path import abspath
 
 class GtsConfig(object):
     _CONFIG={

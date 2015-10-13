@@ -2,10 +2,11 @@
 
 import nibabel as nib
 import numpy as np
+import sys
+
+from math import log
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-import sys
-from math import log
 
 def from_file(filename, figure=True, title=None):
     img = nib.load(filename)
