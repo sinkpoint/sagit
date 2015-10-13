@@ -1,7 +1,8 @@
 
 import gts
-from gts import exec_cmd
 import os
+
+from gts import exec_cmd
 from os import path
 
 class Mrtrix(gts.TractographyMethod):

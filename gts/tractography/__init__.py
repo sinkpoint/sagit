@@ -1,2 +1,2 @@
-from mrtrix import Mrtrix
+#from mrtrix import Mrtrix
 all = ['mrtrix']

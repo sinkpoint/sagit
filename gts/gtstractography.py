@@ -2,10 +2,7 @@ import nibabel as nib
 import numpy as np
 import os
 import os.path as path
-
-from tractography.mrtrix import Mrtrix
-from tractography.slicer import Slicer3
-from tractography.xst import Xst
+import tractography as gtt
 
 class TractographyMethod(object):
     def factory(subj, seed_config, method_config, global_config):
@@ -13,16 +10,16 @@ class TractographyMethod(object):
         type = method_config['method']
 
         if type=='mrtrix':
-            return Mrtrix(subj, seed_config, method_config, global_config)
+            return gtt.Mrtrix(subj, seed_config, method_config, global_config)
 
         # if type=='xst':
         #     return Xst(subj, seed_config, method_config, global_config)
 
         if type=='slicer3':
-            return Slicer3(subj, seed_config, method_config, global_config)
+            return gtt.Slicer3(subj, seed_config, method_config, global_config)
 
         if type=='xst':
-            return Xst(subj, seed_config, method_config, global_config)
+            return gtt.Xst(subj, seed_config, method_config, global_config)
 
     factory = staticmethod(factory)
 

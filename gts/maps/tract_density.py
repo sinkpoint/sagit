@@ -2,17 +2,10 @@ import numpy as np
 import nibabel as nib
 import os.path
 import sys
-from multiprocessing import Pool
-from vtkFileIO import vtkToStreamlines
+from gts.io.vtkio import vtkToStreamlines
 import nipype.interfaces.mrtrix.convert as mrt
 
 _DEBUG = 0
-
-def run(args):
-    outbasename = args.out.split('.')[0]
-
-    tracts_to_density(args.ref, args.in_fiber, outbasename)
-
 
 def tracts_to_density(ref, tracts, basename=''):
     ref_image = nib.load(ref)
@@ -187,20 +180,3 @@ def getDensityOfBounds( streamlines, minCornerRAS, maxCornerRAS):
     return density, num_pass
 
 
-def debug( msg ):
-    global _DEBUG
-    if _DEBUG:
-        print msg
-
-if __name__ == '__main__':
-    from optparse import OptionParser
-    parser = OptionParser(usage="Converts vtk tracts to nifti density image")
-    parser.add_option("-f", "--in_fiber", dest="in_fiber",help="Input fiber bundle in vtk")
-    parser.add_option("-m", "--mask", dest="mask",help="Integer binary mask")
-    parser.add_option("-r", "--reference", dest="ref",help="Reference image to use as image space")
-    parser.add_option("-s", "--resolution", dest="res",help="If no reference image, then the resolution of voxel, default=1")
-    parser.add_option("-o", "--output", dest="out",help="Output nifti filename")
-
-    (option, args) =  parser.parse_args()
-
-    run(option)

@@ -1,8 +1,8 @@
 import nibabel as nib
 import vtk
 
-from meas import sample_scalars
-from vtkFileIO import vtkToStreamlines
+from gts.meas.meas import sample_scalars
+from gts.io.vtkio import vtkToStreamlines
 
 def image_to_vtk(nifti_img, vtk_file, output_file, scalar_name='Scalar'):
     img = nib.load(nifti_img)

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Created on Tue Feb 18 13:43:13 2014
@@ -6,25 +6,40 @@ Created on Tue Feb 18 13:43:13 2014
 @author: dchen
 """
 
-import sys
 import json
-import argparse
 import numpy as np
-import shutil
-from glob import glob
 import os
-from os import getcwd
-from os import path
+import shutil
+
+from glob import glob
 from os import chdir
+from os import getcwd
 from os import mkdir
+from os import path
 
 import nibabel as nib
-from nibabel import trackvis as tv
+
 from gtsutils import exec_cmd
+#from nibabel import trackvis as tv
 #from dtproc import *
+from gtsconfig import GtsConfig
+from pynrrd import *
 
+from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFont
+import gc
+import gts.meas.imagescore as imgs
+import time
+import vol2iso_viz
+import vtk
 
+from gts.maps import tract_density as tdm
 
+from dipy.viz import fvtk
+from dipy.viz.colormap import line_colors
+from gtstractography import TractographyMethod
+from ordered_set import OrderedSet
 # def matchSpacing(reference, moving, output):
 #     ref = nib.load(reference)
 #     ref_zooms = ref.get_header().get_zooms()[:3]
@@ -74,7 +89,7 @@ def getGtsFilename(config, *args, **kwargs):
 
 class GroupTractStats:
     def __init__(self, conf_file=''):
-        from gts import GtsConfig
+
         self.config = GtsConfig(conf_file)
 
     def _g(self, *args, **kwargs):
@@ -482,7 +497,6 @@ class GroupTractStats:
 
                 
                 # This is required as XST cannot correct read space directions other than RAS                             
-                from pynrrd import *
                 ras_corrected_file = subj+'_dwi_ras.nhdr'
                 reader = NrrdReader()
                 header, b = reader.getFileAsHeader(slicer_comp_file)
@@ -554,8 +568,7 @@ class GroupTractStats:
 
             ############ Pass on methods list and generate tracts
 
-            import time
-            from gtstractography import TractographyMethod
+
                             
             seeds = c.seeds_def
             for k,seed_map in seeds.iteritems():
@@ -622,7 +635,6 @@ class GroupTractStats:
         return stream_map
 
     def tracts_to_density(self, tracts_map):
-        import gts.tractDensityMap as tdm
         print '===================== TRACTS TO DENSITY ======================='
         c = self.config
         for subj in c.subjects:
@@ -648,7 +660,7 @@ class GroupTractStats:
 
     def viewTracks(self):
         print '===================== GENERATER TRACTS BROWSER ======================='
-        import vtk
+
         c = self.config
         origin=getcwd()
 
@@ -800,9 +812,7 @@ class GroupTractStats:
                 FILE.close()
 
     def tracts_to_images(self, stream_map):
-        import vtk
-        from dipy.viz.colormap import line_colors
-        from dipy.viz import fvtk
+
 
         print '===================== PERFORM tracts_to_images ======================='
 
@@ -973,8 +983,7 @@ class GroupTractStats:
             for j in i:
                 print j
 
-        import nibabel as nib
-        import gc
+
 
         ref_img_path = path.join(c.orig_path,c.template_def['reference'])
         refimg = nib.load(ref_img_path)
@@ -1011,7 +1020,6 @@ class GroupTractStats:
 
                 filebasename = self._g(label, affix, 'average', prefix=False, ext=False)
 
-                import imagescore as imgs
                 figure_file = filebasename+'_figure.png'
                 figure_file = path.join(c.processed_path, figure_file)
                 score = imgs.get_score(data_pool, figure=figure_file, title=label)
@@ -1035,8 +1043,6 @@ class GroupTractStats:
 
 
     def conjunction_to_images(self, file_list, slice_indices=(0,0,0), name='', bg_file='' , auto_slice=True,dry_run=False):
-        import vol2iso_viz
-        import os
 
         def get_slicing(focus_settings, skey):
                 if not isinstance(focus_settings, dict):
@@ -1108,11 +1114,6 @@ class GroupTractStats:
         return all_imgs, basename
 
     def conjunction_images_combine(self, images_list, group_names=['bg', 'nobg'], basename='filtered_bin_average'):
-        import Image
-        import ImageDraw
-        import ImageFont
-        from ordered_set import OrderedSet
-
         print '===================== PERFORM conjunction_images_combine ======================='
         c = self.config
         img_path = c.processed_path+'/images'

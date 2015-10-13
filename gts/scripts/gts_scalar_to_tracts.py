@@ -1,9 +1,10 @@
+#!/usr/bin/env python 
+import sys
+
 from gts.meas import utils
+from optparse import OptionParser
 
-if __name__ == '__main__':
-    import sys
-    from optparse import OptionParser
-
+def main(args=None):
     parser = OptionParser(usage="Usage: %prog -i input")
     parser.add_option("-m", "--input_image", dest="image",help="Input nifti volume file")
     parser.add_option("-i", "--fiber", dest="fiber",help="Input vtk fiber file")
@@ -17,3 +18,6 @@ if __name__ == '__main__':
         sys.exit(2)
     else:
         utils.image_to_vtk(options.image, options.fiber, options.output, scalar_name=options.name)
+
+if __name__ == '__main__':
+    main()
