@@ -1,11 +1,11 @@
-import gts
 from gts import exec_cmd
 import os
 from os import path
+from tract_method import TractographyMethod
 from vtk import vtkXMLPolyDataReader
 from vtk import vtkPolyDataWriter
         
-class Slicer3(gts.TractographyMethod):
+class Slicer3(TractographyMethod):
     def __init__(self, subj, seed_config, method_config, global_config):
         super(Slicer3, self).__init__(subj, seed_config, method_config, global_config)
 

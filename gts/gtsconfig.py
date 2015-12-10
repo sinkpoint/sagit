@@ -1,7 +1,7 @@
 import gtsroi
 import json
 
-from jsoncomment import JsonComment
+import commentjson
 from os import getcwd
 from os import path
 from os.path import abspath
@@ -70,8 +70,8 @@ class GtsConfig(object):
         if not conf == "":
             print '>',conf
             fp = open(conf, 'r')
-            parser = JsonComment(json)
-            config_map = parser.load(fp)
+            #parser = JsonComment(json)
+            config_map = commentjson.load(fp)
             for k,v in config_map.iteritems():
                 if k=='import':
                     self.loadFromJson(v)

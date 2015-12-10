@@ -15,7 +15,6 @@ from pyparsing import alphas
 from pyparsing import delimitedList
 from pyparsing import nums
 from pyparsing import oneOf
-from pypeg2 import *
 
 class GtsRoi(object):
     """
@@ -86,7 +85,7 @@ class GtsRoi(object):
             os.chdir(self.origin_path)
 
     def generate(self, subj_name, ref='dwi', filename=''):
-
+        print subj_name, ref, filename
 
         # image functions, always return (filename, associated_label(default to 1))
         def get_data(param_tuple):
@@ -179,7 +178,6 @@ class GtsRoi(object):
 
 
 
-
         self.goto_working_path(subj_name)
          
         exp = Forward()
@@ -188,9 +186,10 @@ class GtsRoi(object):
         labels = Word('@'+nums)
         number = Word(nums).setParseAction(lambda s, l, t: int(t[0]))
 
-
         lparen = Literal('(').suppress()
         rparen = Literal(')').suppress()
+
+        print lparen,rparen
 
         exp << Group(funcname + lparen + delimitedList(number | labels | exp ) + rparen)
 

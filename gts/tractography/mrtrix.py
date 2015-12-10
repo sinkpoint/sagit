@@ -1,11 +1,9 @@
-
-import gts
 import os
-
 from gts import exec_cmd
 from os import path
+from tract_method import TractographyMethod
 
-class Mrtrix(gts.TractographyMethod):
+class Mrtrix(TractographyMethod):
     def __init__(self, subj, seed_config, method_config, global_config):
         super(Mrtrix, self).__init__(subj, seed_config, method_config, global_config)
 

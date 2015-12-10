@@ -38,7 +38,7 @@ from gts.maps import tract_density as tdm
 
 from dipy.viz import fvtk
 from dipy.viz.colormap import line_colors
-from gtstractography import TractographyMethod
+from tractography import TractographyMethod
 from ordered_set import OrderedSet
 # def matchSpacing(reference, moving, output):
 #     ref = nib.load(reference)
@@ -107,32 +107,34 @@ class GroupTractStats:
         """
 
         c = self.config
-        orig_path = c.orig_path
+        # orig_path = c.orig_path
         imgext = c.imgext
-        prefix = c.prefix
-        T1_processed_path = c.T1_processed_path
+        # prefix = c.prefix
+        # T1_processed_path = c.T1_processed_path
         template_rois= c.template_def
         ind_roi_path = c.ind_roi_path
 
         for subj in c.subjects:
             print '------------------------------projectTemplateToSingle------'
             print subj
-            subj_T1 = orig_path+'/'+subj+'_T1'+imgext
 
-            #subj_pref = T1_processed_path+'/'+self._g(subj, ext=False)
-            subj_pref = T1_processed_path+'/'+c.prefix+subj+'_'
 
-            ants_prefix= c.group_prefix
-            warpAffix = ants_prefix+'InverseWarp.nii.gz'
-            affAffix = ants_prefix+'Affine.txt'
+            # subj_T1 = orig_path+'/'+subj+'_T1'+imgext
 
-            if len(glob(subj_pref+'*'+affAffix)) == 0:
-                # can't find affine.txt, assume it's mat
-                warpAffix = '1InverseWarp.nii.gz'
-                affAffix = '0GenericAffine.mat'
+            # #subj_pref = T1_processed_path+'/'+self._g(subj, ext=False)
+            # subj_pref = T1_processed_path+'/'+c.prefix+subj+'_'
 
-            subj_warp = subj_pref+warpAffix
-            subj_affine = subj_pref+affAffix
+            # ants_prefix= c.group_prefix
+            # warpAffix = ants_prefix+'InverseWarp.nii.gz'
+            # affAffix = ants_prefix+'Affine.txt'
+
+            # if len(glob(subj_pref+'*'+affAffix)) == 0:
+            #     # can't find affine.txt, assume it's mat
+            #     warpAffix = '1InverseWarp.nii.gz'
+            #     affAffix = '0GenericAffine.mat'
+
+            # subj_warp = subj_pref+warpAffix
+            # subj_affine = subj_pref+affAffix
 
 
             for rname, filename in template_rois.iteritems():
@@ -146,9 +148,11 @@ class GroupTractStats:
                 outName = self._g(subj, roiName)
                 output = ind_roi_path+'/'+outName
 
-                cmd="antsApplyTransforms -d 3 -i %s -o %s -r %s -n NearestNeighbor -t [%s,1] -t %s" % (inName, output, subj_T1,  subj_affine, subj_warp)
+                self.ants_apply_transform_average_to_t1(subj, inName, output)
 
-                exec_cmd(cmd)
+                #cmd="antsApplyTransforms -d 3 -i %s -o %s -r %s -n NearestNeighbor -t [%s,1] -t %s" % (inName, output, subj_T1,  subj_affine, subj_warp)
+
+                #exec_cmd(cmd)
 
                 #cmd="fslmaths %s -kernel sphere 1 -dilM %s" % (output, output)
                 #exec_cmd(cmd)
@@ -301,7 +305,7 @@ class GroupTractStats:
         processed_path = c.T1_processed_path
 
         #subj_pref = self._g(subj,ext=False)
-        subj_pref = c.prefix+subj+'_'
+        subj_pref = c.prefix+'_'+subj
 
         ref = '%s_T1.nii.gz' % subj
         if reference=='average':
@@ -428,7 +432,7 @@ class GroupTractStats:
         exec_cmd(cmd)
 
 
-    def seedIndividualTracts(self, labels=[1],recompute=False,overwrite=False, reorganize_paths=False):
+    def seedIndividualTracts(self, labels=[1],recompute=False,overwrite=False, reorganize_paths=False, run_unfiltered=True):
 
         print '===========================seedIndividualTracts============================'        
         c = self.config
@@ -582,15 +586,16 @@ class GroupTractStats:
                     print '\n-- PERFORM %s' % method_label
                     method = TractographyMethod.factory(subj, seed_map, imethod, c)
 
-                    start_time = time.time()
-                    fiber_name = method.run(filter=False)
-                    stop_time = time.time()
-                    elapsed_time = stop_time - start_time
+                    if run_unfiltered:
+                        start_time = time.time()
+                        fiber_name = method.run(filter=False)
+                        stop_time = time.time()
+                        elapsed_time = stop_time - start_time
 
-                    report = '%s,%s,%s,unfiltered,%.9f' % (subj, method_label, label_str, elapsed_time)
+                        report = '%s,%s,%s,unfiltered,%.9f' % (subj, method_label, label_str, elapsed_time)
 
-                    with open(TRACT_TIME_LOG, 'a') as fp:
-                        fp.write(report+'\n')                        
+                        with open(TRACT_TIME_LOG, 'a') as fp:
+                            fp.write(report+'\n')                        
 
 
                     start_time = time.time()
