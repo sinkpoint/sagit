@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Created on Tue Feb 18 13:43:13 2014
@@ -8,17 +8,150 @@ Created on Tue Feb 18 13:43:13 2014
 
 import sys
 import os
+from os import path
+from glob import glob
 import json
 import argparse
 from gts.groupTractStats import *
+from gts.gtsutils import exec_cmd
 
 conf_file = sys.argv[1]
 gts =  GroupTractStats(conf_file)
 
 conf_name = os.path.basename(conf_file).split('.')[0]
-tracts_file = conf_name+'_tracts.txt'
+root_path = os.getcwd()    
+
+def getApPerSubj(subj, c):    
+    print '--------------------------------run AP---------------------------------'
+
+    orig_path = c.orig_path
+    dwi_path = c.dwi_base_path
+    root_path = c.root_path
+    dwi_file = subj+'.nii.gz'
+    t1_file = subj+'_T1.nii.gz'
+    os.chdir(orig_path)
+
+    if not path.isfile(t1_file):
+        t1_source = path.join(c.T1_processed_path, '%s_antsT1.nii.gz' % subj)
+        cmd = 'ln -s %s %s' % (t1_source, t1_file)
+        exec_cmd(cmd)
+
+    if not path.isfile(dwi_file):
+        # get dwi files
+        subj_path = path.join(dwi_path, subj)
+        dwi_folder = glob(subj_path+"/*DTI*60*")[0]
+        subj_data_source = path.join(dwi_folder,'nifti')
+
+        dwi_source = path.join(subj_data_source, 'Motion_Corrected_DWI_nobet.nii.gz')
+        bvec_source = path.join(subj_data_source, 'newdirs.dat')        
+        bval_source = path.join(subj_data_source, subj+'.bval')        
+        nhdr_source = path.join(subj_data_source, 'DWI_CORRECTED.nhdr')
+
+        cmd = 'ln -s %s %s' % (dwi_source, dwi_file)
+        exec_cmd(cmd)
+        cmd = 'ln -s %s %s' % (bvec_source, subj+'.bvec')
+        exec_cmd(cmd)
+        cmd = 'ln -s %s %s' % (bval_source, subj+'.bval')
+        exec_cmd(cmd)
+
+        cmd="slicerTensorScalar.sh -i %s -p %s_ -d ." % (nhdr_source, subj)
+        exec_cmd(cmd, truncate=True)
+
+    cmd="fslmaths %s -Tmean %s" % (dwi_file, subj+'_MDWI')
+    exec_cmd(cmd)    
+
+    # get b0 image
+    cmd="fslroi %s %s_B0 0 1" % (dwi_file, subj)
+    exec_cmd(cmd)
+    # get dwi average only, excluding b0
+    cmd="fslroi %s %s_temp 1 -1" % (dwi_file, subj)    
+    exec_cmd(cmd)        
+    cmd="fslmaths %s_temp -Tmean %s_ADWI" % (subj, subj)    
+    exec_cmd(cmd)   
+    cmd="rm %s_temp" % (subj)    
+
+    bet='0.2'
+    cmd='bet %s_T1 %s_T1_bet -f %s ' % (subj, subj, bet)
+    exec_cmd(cmd)
+
+    # generate mask based on dwi
+    cmd='bet %s %s_bet -m -n -f %s' % (dwi_file, subj, bet)
+    exec_cmd(cmd)
+    
+    bet_mask = '%s_erod_bet_mask.nii.gz' % subj
+
+    # erode the mask to remove fringe skull intensities in FA
+    cmd='fslmaths %s_bet_mask.nii.gz -kernel box -ero %s' % (subj, bet_mask)
+    exec_cmd(cmd)
 
 
+    # apply mask to MDWI
+    cmd='fslmaths %s_MDWI -mul %s %s_MDWI_bet' % (subj, bet_mask, subj)
+    exec_cmd(cmd)
+
+    # apply mask to MDWI
+    cmd='fslmaths %s_ADWI -mul %s %s_ADWI_bet' % (subj, bet_mask, subj)
+    exec_cmd(cmd)
+
+    cmd='fslmaths %s_B0 -mul %s %s_B0_bet' % (subj, bet_mask, subj)
+    exec_cmd(cmd)    
+
+
+    # apply mask to FA
+    cmd='fslmaths %s_FA -mul %s %s_FA_bet' % (subj, bet_mask, subj)
+    exec_cmd(cmd)    
+
+    if 1: 
+
+        import nibabel as nib    
+
+        # generate ap mask
+        from sh_to_apm import peaks_from_nifti, sh_to_ap
+        import cPickle
+
+        img = nib.load(bet_mask)
+        affine = img.get_affine()
+
+        peaks_file = subj+'_qball_peaks.dipy'    
+        # if not path.isfile(peaks_file):
+        peaks = peaks_from_nifti(subj, mask=bet_mask)
+        with open(peaks_file, 'wb') as fout:
+            cPickle.dump(peaks, fout, -1)
+        # else:
+        #     with open(peaks_file, 'rb') as fin:
+        #         peaks = cPickle.load(fin)
+
+        coeffs = peaks.shm_coeff
+        # AP
+        ap_data = sh_to_ap(coeffs, norm=1)
+        newimg = nib.Nifti1Image(ap_data, affine)
+
+        ap_file = subj+'_AP3_bet.nii.gz'
+        nib.save(newimg, ap_file)
+
+        # AP real
+        ap_data = sh_to_ap(coeffs)
+        newimg = nib.Nifti1Image(ap_data, affine)
+
+        ap_file = subj+'_AP4_bet.nii.gz'
+        nib.save(newimg, ap_file)        
+
+        # GFA
+        gfa_data = peaks.gfa
+        newimg = nib.Nifti1Image(gfa_data, affine)
+
+        ap_file = subj+'_GFA_bet.nii.gz'
+        nib.save(newimg, ap_file)
+
+
+    bet_files = glob('*bet*')
+    for i in bet_files:
+        cmd='mv %s %s' % (i, c.preprocessed_path)
+        exec_cmd(cmd)
+
+
+
+gts.runPerSubject(getApPerSubj)
 # gts.preprocessDWI()
 # gts.runAntsDwiToT1(bet='0.1')
 # gts.projectRoiT1TemplateToSingle()
@@ -27,59 +160,6 @@ tracts_file = conf_name+'_tracts.txt'
 # tracts = gts.seedIndividualTracts(labels=[2],recompute=False,overwrite=True)
 
 
-# with open(tracts_file, 'w') as outfile:
-# 	json.dump(tracts, outfile, sort_keys=True, indent=4, separators=(',', ': '))
 
-with open(tracts_file, 'r') as fp:
-	tracts = json.load(fp)
-
-print tracts
-#gts.tracts_to_images(tracts)
-
-#gts.viewTracks()
-
-from copy import copy, deepcopy
-unfiltered_tracts = deepcopy(tracts)
-for k,v in unfiltered_tracts.iteritems():
-    for i,j in enumerate(v):
-        v[i] = j.replace('_filtered','')
-
-dry_run_conjunc = True
-
-def densityMapping(tracts, dry_run=False, name=''):
-    global conf_name
-    if not dry_run:
-        gts.tracts_to_density(tracts)
-
-    conj_files = gts.tracts_conjunction(tracts, img_type='binary',dry_run=dry_run)
-    print conj_files
-
-    conj_files_list = conf_name+name+'_conj_files.txt'
-
-    with open(conj_files_list, 'w') as outfile:
-      	json.dump(conj_files, outfile, sort_keys=True, indent=4, separators=(',', ': '))
-
-    with open(conj_files_list, 'r') as fp:
-     	conj_files = json.load(fp)
-
-    import pandas as pd
-    conj_df = pd.DataFrame(conj_files)
-    conj_df.drop(0,axis=1,inplace=True)
-    conj_df.to_csv(path.basename(conj_files_list)+'.csv')
-
-
-    fig_list, basename = gts.conjunction_to_images(conj_files, name='nobg', bg_file='', dry_run=dry_run)
-    if not dry_run:
-        gts.conjunction_images_combine(fig_list, basename=basename, group_names=['nobg'])
-
-    fig_list, basename = gts.conjunction_to_images(conj_files, name='bg', bg_file=gts.config.orig_path+'/con_average.nii.gz', slice_indices=(128,128,80), dry_run=dry_run)
-    if not dry_run:    
-        gts.conjunction_images_combine(fig_list, basename=basename, group_names=['bg'])
-
-print tracts
-densityMapping(tracts, dry_run=dry_run_conjunc)
-
-print unfiltered_tracts
-densityMapping(unfiltered_tracts, dry_run=dry_run_conjunc, name='_unfiltered')
 
 

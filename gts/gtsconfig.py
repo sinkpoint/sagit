@@ -25,6 +25,7 @@ class GtsConfig(object):
             self._CONFIG["subject_dti_path"] = '/media/AMMONIS/projects/controls'
             self._CONFIG["template_roi_path"] = "/media/AMMONIS/proejcts/mtt_anat/C5_to_avgs/processed"
             self._CONFIG['dwi_base_path']  = '/media/AMMONIS/scans/normals/'
+            self._CONFIG['dwi_autodetect_folder'] = True,
             self._CONFIG["tractography_path"] = './tractography'
             self._CONFIG["ind_roi_path"] = "./rois"
             self._CONFIG["prefix"]="ANTS_"

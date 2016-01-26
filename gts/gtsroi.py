@@ -53,7 +53,7 @@ class GtsRoi(object):
             template_name = gc.template_def[self.image].split('.')[0]
             return template_name
 
-        elif self.type=='fsl':
+        elif self.type=='freesurfer':
             return self.aseg_file.split('.')[0]
 
     def get_filename(self, subj, ref='dwi', autogen=True):
@@ -66,7 +66,7 @@ class GtsRoi(object):
             projected_filename = gts.getDwiRoiName(gc,subj,template_name,ref=ref)+'.nii.gz'
             return projected_filename        
 
-        elif self.type=='from_fsl':
+        elif self.type=='freesurfer':
             gen_filename = self.name+'_gen.nii.gz'
             if autogen:
                 gen_filename = self.generate(subj, filename=gen_filename)

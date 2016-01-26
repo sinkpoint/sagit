@@ -98,9 +98,12 @@ class GroupTractStats:
     def _d(self, subj, basename, ref=""):
         return getGtsFilename(self.config, subj, basename, ref, ext=False)
 
-    def runPerSubject(self, func):
+    def runPerSubject(self, func, **kwargs):
     	for subj in self.config.subjects:
-    		func(subj, self.config)
+    		func(self, subj, **kwargs)
+
+    def run(self, func, **kwargs):
+        func(self, **kwargs)
 
     def projectRoiT1TemplateToSingle(self):
         """ Project averaged T1 ROI to indidivual T1 space
@@ -246,6 +249,44 @@ class GroupTractStats:
                 #print 'copy %s to %s' %( output, dir_roi )
                 #shutil.copyfile(output, dir_roi)
 
+    """
+        The the transformation arguments for ANTS, depending on the direction of the transformation
+    """
+    def get_ants_t1_to_dwi_transforms(self, subj, inverse=False, reference='dwi'):
+        c = self.config
+        orig_path = c.orig_path
+        processed_path = c.processed_path
+
+        subj_pref = self._g(subj, ext=False)
+
+
+        ref = '%s_FA.nii.gz' % subj
+        if reference=='t1':
+            ref = '%s_T1.nii.gz' % subj
+
+        ref = orig_path+'/'+ref
+
+        invWarpAffix = 'InverseWarp.nii.gz'
+        warpAffix = 'Warp.nii.gz'
+        affAffix = 'Affine.txt'
+
+        if len(glob(subj_pref+'*'+affAffix)) == 0:
+            # can't find affine.txt, assume it's mat
+            invWarpAffix = '1InverseWarp.nii.gz'
+            warpAffix = '1Warp.nii.gz'
+            affAffix = '0GenericAffine.mat'
+
+        subj_invWarp = processed_path+'/'+subj_pref+invWarpAffix
+        subj_warp = processed_path+'/'+subj_pref+warpAffix
+        subj_affine = processed_path+'/'+subj_pref+affAffix
+
+        if not inverse:
+            trans = "-t [%s,1] -t %s" % (subj_affine, subj_invWarp)
+        else:
+            trans = "-t %s -t %s" % (subj_warp, subj_affine)
+
+        return [trans, ref]
+
     def ants_apply_transform_t1_to_dwi(self, subj, input, output, inverse=False, reference='dwi', interp='NearestNeighbor', just_transform_param=False, auto_naming=True):
 
         c = self.config
@@ -294,6 +335,41 @@ class GroupTractStats:
 
         cmd += trans
         exec_cmd(cmd)
+
+    def get_ants_t1_to_avg_transforms(self, subj, inverse=False, reference='t1'):
+        c = self.config
+        orig_path = c.orig_path
+        processed_path = c.T1_processed_path
+
+        #subj_pref = self._g(subj,ext=False)
+        subj_pref = c.prefix+'_'+subj
+
+        ref = '%s_T1.nii.gz' % subj
+        if reference=='average':
+            ref = c.group_template_file
+        ref = orig_path+'/'+ref
+
+        group_prefix = c.group_prefix
+        invWarpAffix = group_prefix+'InverseWarp.nii.gz'
+        warpAffix = group_prefix+'Warp.nii.gz'
+        affAffix = group_prefix+'Affine.txt'
+
+        if len(glob(processed_path+'/'+subj_pref+'*'+affAffix)) == 0:
+            # can't find affine.txt, assume it's mat
+            invWarpAffix = '1InverseWarp.nii.gz'
+            warpAffix = '1Warp.nii.gz'
+            affAffix = '0GenericAffine.mat'
+
+        subj_invWarp = processed_path+'/'+subj_pref+invWarpAffix
+        subj_warp = processed_path+'/'+subj_pref+warpAffix
+        subj_affine = processed_path+'/'+subj_pref+affAffix
+
+        if not inverse:
+            trans = "-t [%s,1] -t %s" % (subj_affine, subj_invWarp)
+        else:
+            trans = "-t %s -t %s" % (subj_warp, subj_affine)
+            
+        return [trans, ref]        
 
     def ants_apply_transform_average_to_t1(self, subj, input, output, reference='t1', interp='NearestNeighbor', inverse=False,just_transform_param=False):
 
@@ -346,10 +422,13 @@ class GroupTractStats:
         root_path = getcwd()
         for subj in c.subjects:
             print '--------------------------------preprocessDWI---------------------------------'
-            subj_path = dwi_path+subj
+            subj_path = path.join(dwi_path,subj)
             chdir(subj_path)
-            dwi_folder = glob("*DTI*60*")[0]
-            chdir(dwi_folder+'/nifti')
+            if c.dwi_autodetect_folder:
+                dwi_folder = glob("*DTI*60*")[0]
+            else:
+                dwi_folder = ''
+            chdir(path.join(dwi_folder,'nifti'))
             print getcwd()
 
             #if not path.isfile("vol0000.nii.gz"):
@@ -478,8 +557,12 @@ class GroupTractStats:
                 subj_source_path = path.join(dwi_path,subj)
                 chdir(subj_source_path)
 
-                dwi_folder = glob("*DTI*60*")[0]
-                chdir(dwi_folder+'/nifti')
+                
+                if c.dwi_autodetect_folder:
+                    dwi_folder = glob("*DTI*60*")[0]
+                else:
+                    dwi_folder = ''
+                chdir(path.join(dwi_folder,'nifti'))
 
                 subj_dwi_source_path_abs = getcwd()
                 chdir(orig_path)
@@ -503,7 +586,7 @@ class GroupTractStats:
                 # This is required as XST cannot correct read space directions other than RAS                             
                 ras_corrected_file = subj+'_dwi_ras.nhdr'
                 reader = NrrdReader()
-                header, b = reader.getFileAsHeader(slicer_comp_file)
+                header, b = reader.load(slicer_comp_file)
                 # once slicer reads the file, it will convert the file it's a space that it understands                
                 header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
                 writer = NrrdWriter()
@@ -588,7 +671,7 @@ class GroupTractStats:
 
                     if run_unfiltered:
                         start_time = time.time()
-                        fiber_name = method.run(filter=False)
+                        fiber_name = method.run(filter=False) # RUN THE METHOD
                         stop_time = time.time()
                         elapsed_time = stop_time - start_time
 

@@ -3,7 +3,7 @@ from subprocess import Popen, PIPE
 import shlex,sys
 
 _SIMULATE = False
-def exec_cmd(cmd, truncate=False, display=True, watch='stdout'):
+def exec_cmd(cmd, truncate=False, display=True, watch='stdout', dryrun=False):
     def output_line(line, truncate=False):
         if truncate:
             line = line.replace('\n','')             
@@ -16,7 +16,7 @@ def exec_cmd(cmd, truncate=False, display=True, watch='stdout'):
         return len(line)
 
     print '#-> '+cmd
-    if not _SIMULATE:
+    if not _SIMULATE and not dryrun:
         #system(cmd)
         args = shlex.split(cmd)
         if watch=='stdout':

@@ -14,7 +14,10 @@ class Mrtrix(TractographyMethod):
         exec_cmd(cmd)
         cmd = 'mrconvert Motion_Corrected_DWI_nobet.nii.gz dwi.mif'
         exec_cmd(cmd)
-        cmd = 'mrtrix_grad.py -v newdirs.dat -a %s.bval -o dwi.grad' % (self.subject)
+        bval_file = 'DWI.bval'
+        if os.path.isfile(self.subject+'.bval'):
+            bval_file = self.subject+'.bval'
+        cmd = 'mrtrix_grad.py -v newdirs.dat -a %s -o dwi.grad' % (bval_file)
         exec_cmd(cmd)
         cmd = 'mrtrix_compcsd.sh -g dwi.grad dwi.mif'
         exec_cmd(cmd)

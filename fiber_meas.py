@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
 Created on Fri Mar 21 16:41:51 2014
 
@@ -7,9 +7,12 @@ Created on Fri Mar 21 16:41:51 2014
 import vtk
 import numpy as np
 import numpy.linalg as la
-
-
 import sys
+
+QB_DIST = 18
+QB_NPOINTS = 50
+SCALAR_NAME = 'FA'
+
 filename=sys.argv[1]
 
 reader = vtk.vtkXMLPolyDataReader()
@@ -26,14 +29,16 @@ for i in range(polydata.GetNumberOfCells()):
     ids = [ pids.GetId(p) for p in range(pids.GetNumberOfIds())]
     tract_ids.append(ids)
 
-print len(tract_ids)
+print 'tracks:',len(tract_ids)
 verts = vtk_to_numpy(polydata.GetPoints().GetData())
-print len(verts)
-scalars = vtk_to_numpy(polydata.GetPointData().GetScalars())
-print len(scalars)
+print 'verts:',len(verts)
 
-print verts
-print scalars
+pointdata = polydata.GetPointData()
+for si in range(pointdata.GetNumberOfArrays()):
+    sname =  pointdata.GetArrayName(si)
+    if sname==SCALAR_NAME:
+        scalars = vtk_to_numpy(pointdata.GetArray(si))
+
 
 streamlines = []
 stream_scalars = []
@@ -71,7 +76,8 @@ stl_ori = np.array([np.abs(tm.mean_orientation(l)) for l in streamlines])
 
 from mayavi import mlab
 
-fig = mlab.figure(bgcolor=(1.0,1.0,1.0))
+bg_val = 0.6
+fig = mlab.figure(bgcolor=(bg_val,bg_val,bg_val))
 scene = mlab.gcf().scene
 fig.scene.render_window.aa_frames = 4
 mlab.draw()
@@ -120,8 +126,7 @@ mlab.draw()
 
 
 # streamlines = newlines
-
-qb = QuickBundles(streamlines, dist_thr=40.,pts=50)
+qb = QuickBundles(streamlines, dist_thr=QB_DIST,pts=QB_NPOINTS)
 # bundle_distance_mam
 
 centroids = qb.centroids
@@ -145,67 +150,85 @@ for i, line in enumerate(centroids):
     avg_d += d
 
 
-#sort centroids by length
-# max_cent_num = 2
-
-# centroids.sort(key=lambda x: len(x))
-# centroids = centroids[:max_cent_num]
-
-
 import scipy
 import scikits.bootstrap as bootstrap
+import scipy.stats as stats
 import numpy as np
 
 
 len_cent = len(centroids)
 fig, axes = plt.subplots(len_cent, sharex=True, sharey=True)
-pal = sns.color_palette("cubehelix", len_cent)
+pal = sns.color_palette("deep", len_cent)
 
 plt.xlabel('Position Index')
 
+def stats_per_group(x):
+    res = {'median':[],'qtile':[],'ci':[]}
+    medians = np.median(x)
+    res['median'] = medians
+    lower_quartile, upper_quartile = np.percentile(x, [25,75])
+    res['qtile'] = (upper_quartile, lower_quartile)
+#    res['ci'] = np.percentile(x, [2.5,97.5])
+    iqr = upper_quartile - lower_quartile
+    upper_whisker = x[x<=upper_quartile+1.5*iqr].max()
+    lower_whisker = x[x>=lower_quartile-1.5*iqr].min()
+    res['whisk'] = (lower_whisker, upper_whisker)
+    res['err'] = (np.abs(lower_whisker-medians), np.abs(upper_whisker-medians))
+    print res
+    return res
 
 for ci, cent in enumerate(centroids):
     print '---- centroid:'
-    print cent
 
     from scipy.cluster.vq import kmeans2
     ind = clusters[ci]['indices']
-    cent_streams = streamlines[ind]
-    cent_scalars = stream_scalars[ind]
+    # cent_streams = streamlines[ind]
+    # cent_scalars = stream_scalars[ind]
+
+    # apply each centriod to all the points
+    # instead of only their centroid assignments
+    cent_streams = streamlines
+    cent_scalars = stream_scalars
     cent_verts = np.vstack(cent_streams)
     cent_scalars = np.concatenate(cent_scalars)
     c, labels = kmeans2(cent_verts, cent, iter=1)
 
     cid = np.ones(len(labels))
-    d = {'FA':cent_scalars, 'position':labels}
+    d = {'Value':cent_scalars, 'position':labels}
     df = pd.DataFrame(data=d)
-    grp = df.groupby('position')
+    grp = df.groupby('position', sort=True)
     #cent_stats = grp.FA.mean().as_matrix()
-    cent_stats = grp.FA.apply(lambda x:scipy.mean(x)).as_matrix()
-    cent_std = grp.FA.std().as_matrix()
-    # bootstrap 68% CI, or 1 standard deviation
-    #cent_ci = grp['FA'].apply(lambda x:bootstrap.ci(data=x, statfunction=scipy.mean, alpha=0.32, n_samples=1000))
-    #cent_ci = np.array(cent_ci.values.tolist())
+    cent_stats = grp.Value.apply(lambda x:stats_per_group(x))
+    # cent_std = grp.FA.apply(lambda x:np.std(x)).as_matrix()
+    # # bootstrap 68% CI, or 1 standard deviation
+    #cent_ci = grp.Value.apply(lambda x: stats.norm.interval(0.95,loc=np.median(x),scale=np.std(x))).as_matrix()
 
-    print cent_stats
-    print cent_std
-    #print cent_ci
-
-    x = [i for i,v in enumerate(cent_stats)]
+    cent_stats = cent_stats.unstack()
+    cent_median_scalar = cent_stats['median'].tolist()
+    x = [i for i in grp.groups]
     print x
 
+    print cent_stats['median'].tolist()
+
     mcolor = pal[ci]
-    print type(axes)
     if type(axes) is np.ndarray:
         cur_axe = axes[ci]
     else:
         cur_axe = axes
-    cur_axe.set_ylabel('FA')
-    cur_axe.plot(x, cent_stats, color=mcolor, alpha=0.8)
-    #plt.errorbar(x, cent_stats, yerr=cent_std, color=mcolor, label=u'Observations', alpha=0.6)
-    cur_axe.fill_between(x, cent_stats-cent_std, cent_stats+cent_std, alpha=0.1, color=mcolor)
-    #cur_axe.fill_between(x, cent_ci[:,0], cent_ci[:,1], alpha=0.2, color=mcolor)
+    cur_axe.set_ylabel(SCALAR_NAME)
 
+    #cur_axe.fill_between(x, [s[0] for s in cent_ci], [t[1] for t in cent_ci], alpha=0.3, color=mcolor)
+
+    cur_axe.fill_between(x, [s[0] for s in cent_stats['whisk'].tolist()], 
+        [t[1] for t in cent_stats['whisk'].tolist()], alpha=0.3, color=mcolor)
+
+    cur_axe.fill_between(x, [s[0] for s in cent_stats['qtile'].tolist()], 
+        [t[1] for t in cent_stats['qtile'].tolist()], alpha=0.3, color=mcolor)
+
+    cur_axe.errorbar(x, cent_stats['median'].tolist(), yerr=[[s[0] for s in cent_stats['err'].tolist()], 
+        [t[1] for t in cent_stats['err'].tolist()]], color=mcolor, alpha=0.5)    
+
+    cur_axe.scatter(x,cent_stats['median'].tolist(), c=mcolor)    
 
 
 # scene.renderer.render_window.set(alpha_bit_planes=1,multi_samples=0)
@@ -215,13 +238,13 @@ for ci, cent in enumerate(centroids):
     mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],labels, opacity=0.2, mode='2dvertex')
     #mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],cent_scalars, opacity=0.6, mode='2dvertex')
 
-    delta = len(cent) - len(cent_stats)
+    delta = len(cent) - len(cent_median_scalar)
     if delta > 0:
-        cent_stats = np.pad(cent_stats, (0,delta), mode='constant', constant_values=0)
-    print len(cent),'=?=',len(cent_stats)
+        cent_median_scalar = np.pad(cent_median_scalar, (0,delta), mode='constant', constant_values=0)
+    print len(cent),'=?=',len(cent_median_scalar)
     mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], x, colormap='blue-red', tube_radius=0.1, opacity=1)
-    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_stats, tube_radius=0.6, opacity=0.5)
-    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_stats, color=mcolor, tube_radius=1.5, opacity=0.2)
+    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, tube_radius=0.6, opacity=0.5)
+    mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, color=mcolor, tube_radius=1.5, opacity=0.2)
     #myplot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], range(len(cent)), tube_radius=1, opacity=0.5)
 
     # print mypts.module_manager.scalar_lut_manager.lut.table.to_array()
@@ -247,6 +270,9 @@ for ci, cent in enumerate(centroids):
 # verts = np.concatenate(newlines, axis=0)
 # mlab.points3d(verts[:,0],verts[:,1],verts[:,2],scale_factor=0.05, mode='2dvertex')
 #mlab.points3d(avg_mid[0],avg_mid[1],avg_mid[2],color=(0,0,1), mode='axes',scale_factor=5)
+#plt.switch_backend('Qt4Agg')
+mg = plt.get_current_fig_manager()
+mg.resize(*mg.window.maxsize())
 plt.show(block=False)
 mlab.show()
 

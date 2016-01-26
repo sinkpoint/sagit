@@ -2,6 +2,7 @@ import slicer
 from gts import exec_cmd
 import os
 from os import path
+from pynrrd import NrrdReader, NrrdWriter
 
 class Xst(slicer.Slicer3):
     def __init__(self, subj, seed_config, method_config, global_config):
@@ -11,7 +12,7 @@ class Xst(slicer.Slicer3):
         self.goto_working_path()
         includes_file, excludes_file, seed_file = self.prep_seed_files()
         seed_info = self.get_seed_info()
-
+        print seed_info
         seed_basename = seed_info['name']
         fiber_basename = self.get_unique_name()
         unfiltered_file = '%s.vtk' % fiber_basename    
@@ -24,6 +25,21 @@ class Xst(slicer.Slicer3):
         exec_cmd(cmd, display=False)
 
         dwi_file = self.subject+'_dwi_ras.nhdr'
+
+        if not path.isfile(dwi_file):
+            print '-- PREPROCESS DWI FOR XST'
+            # This is required as XST cannot correct read space directions other than RAS                             
+            ras_corrected_file = dwi_file
+            reader = NrrdReader()
+            header, b = reader.load('DWI_CORRECTED.nhdr')
+            # once slicer reads the file, it will convert the file it's a space that it understands                
+            header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
+            writer = NrrdWriter()
+            writer.write(header, ras_corrected_file)
+            if header.b0num > 1:
+                cmd = 'b0avg.py -i %s -o %s' % (ras_corrected_file,ras_corrected_file)
+                exec_cmd(cmd)
+
         label = seed_info['label']
         seed_file = seed_basename+label
         cmd="tend2 fiber -i %s -dwi -wspo -ns seeds/%s.txt -o %s -ap -v 2 -t 2evec0 -k cubic:0.0,0.5 -n rk4 %s" % (dwi_file, seed_file, unfiltered_file, params)
@@ -44,7 +60,7 @@ class Xst(slicer.Slicer3):
         vwriter.SetInput(polydata)
         vwriter.Update()
         vwriter.Write()
-        output = '%s_filtered.vtk' % fiber_basename
+        output = '%s_filtered.vtp' % fiber_basename
         
         if filter:
             output = self.filter_step(unfiltered_file, includes_file, excludes_file)
