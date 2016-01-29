@@ -99,8 +99,8 @@ class GroupTractStats:
         return getGtsFilename(self.config, subj, basename, ref, ext=False)
 
     def runPerSubject(self, func, **kwargs):
-    	for subj in self.config.subjects:
-    		func(self, subj, **kwargs)
+        for subj in self.config.subjects:
+            func(self, subj, **kwargs)
 
     def run(self, func, **kwargs):
         func(self, **kwargs)

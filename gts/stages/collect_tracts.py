@@ -11,7 +11,6 @@ def per_subj_tract_to_template_space(self, subj, **kwargs):
 
     if not os.path.isdir(output_path):
         os.mkdir(output_path)
-    
     streamnames = kwargs['tracts']
 
     os.chdir(os.path.join(tract_path, subj))
@@ -23,7 +22,7 @@ def per_subj_tract_to_template_space(self, subj, **kwargs):
     tparams = ' '.join((t1_avg_arg, dwi_t1_arg))
 
     tdb_file = '_'.join([subj,'tracts.tdb'])
-    
+
     print 'tract file: ',tdb_file
     cmd = 'rm '+tdb_file
     exec_cmd(cmd, dryrun=dry_run)
@@ -34,18 +33,17 @@ def per_subj_tract_to_template_space(self, subj, **kwargs):
         for tfile in file_list:
             print '>',tfile
             trkwscalar = tfile.split('.')[0]+'.vtp'
-        
             cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_AD.nii.gz -n AD' % (tfile, trkwscalar, subj)
-    
+
             exec_cmd(cmd, dryrun=dry_run)
             cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_RD.nii.gz -n RD' % (trkwscalar, trkwscalar, subj)
-    
+
             exec_cmd(cmd, dryrun=dry_run)
             cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_FA.nii.gz -n FA' % (trkwscalar, trkwscalar, subj)
-    
+
             exec_cmd(cmd, dryrun=dry_run)
             cmd = 'trkmanage.py init -i %s -d %s' % (trkwscalar, tdb_file)
-    
+
             exec_cmd(cmd, dryrun=dry_run)
 
             file_queue.append(trkwscalar)
@@ -87,7 +85,7 @@ def tracts_merge(self, **kwargs):
     output_path = os.path.join(self.config.processed_path, 'tractography')
     print output_path
 
-    streamnames = kwargs['tracts']    
+    streamnames = kwargs['tracts']
 
     merged_files_queue = []
 
@@ -101,9 +99,10 @@ def tracts_merge(self, **kwargs):
             merged_tdb = merged_file_basename+'.tdb'
             if os.path.isfile(merged_tdb):
                 os.remove(merged_tdb)
-            for subj in self.config.subjects:
+            for idx,[subj,grp] in self.config.subject_df.iterrows():
+                subj = subj.strip()
                 trk_file = '_'.join([subj,tbasename+'.vtp'])
-                cmd = 'trkmanage.py init -d %s.tdb -i %s' % (merged_file_basename, trk_file)
+                cmd = 'trkmanage.py init -d %s.tdb -i %s --group %s' % (merged_file_basename, trk_file, grp)
                 exec_cmd(cmd)
             cmd = 'trkmanage.py expvtk -d %s.tdb --merged -o %s.vtp' % (merged_file_basename,merged_file_basename)
             exec_cmd(cmd)

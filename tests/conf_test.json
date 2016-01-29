@@ -1,0 +1,49 @@
+{
+    "orig_path": "./orig",
+    "preprocessed_path": "./preprocessed",
+    "T1_processed_path": "./group_template",
+    "processed_path": "./processed",
+    "template_roi_path": "./orig",
+    "tractography_path": "./tractography",
+    "ind_roi_path": "./rois",
+
+    "dwi_base_path": "/media/AMMONIS/scans/normals/",
+    "subject_freesurfer_path" : "/media/AMMONIS/fsSubjects/subjects_archive",
+    
+    "group_template_file" : "con43_average.nii.gz",
+    
+    "group_prefix" : "antsT1",
+    
+    "prefix": "ANTS",
+    "affix": "",
+    "imgext": ".nii.gz",
+    "subjects_file": "test_subjs.csv",
+    "subjects": ["C13"],
+    "manual_subjects": false,
+
+
+    "tract_method": [
+
+        {
+            "method" : "mrtrix"
+            ,"label" : "cst_ifod"
+            ,"params":"-algorithm iFOD2 -step 0.5 -angle 45 -num 500 -minlength 10 -cutoff 0.15 -initcutoff 0.2 -force"
+        },    
+        
+	    {
+            "method" : "mrtrix"
+            ,"label" : "cst_sd"
+            ,"params":"-algorithm SD_STREAM -step 0.3 -angle 45 -rk4 -num 300 -minlength 5 -cutoff 0.15 -initcutoff 0.2 -force"
+        }        ,
+        {
+            "method":"slicer3"
+            ,"label" : "slicer"
+            ,"params" : "--stoppingvalue 0.15 --stoppingcurvature 0.8 --minimumlength 5 --clthreshold 0.15 --integrationsteplength 0.5 --randomgrid --seedspacing 0.3"
+        },
+        {
+            "method":"xst"
+            ,"label" : "xst"
+            ,"params" : " -stop aniso:ca2,0.15 frac:0.1 radius:0.8 minlen:5 -step 0.5"
+        }       
+    ]
+}
