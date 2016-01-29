@@ -3,8 +3,10 @@ try:
 except ImportError:
     from distutils.core import setup
 
+myreqs = parse_requirements('requirements.txt')
+
 config = {
-    'description': 'Group Tractography Statistics',
+    'description': 'SAGIT: Selecive Automated Group Integrated Tractography',
     'author': 'David Qixiang Chen',
     'url': 'https://github.com/sinkpoint/gts',
     'download_url': 'https://github.com/sinkpoint/gts',
