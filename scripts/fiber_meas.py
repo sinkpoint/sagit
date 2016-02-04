@@ -236,9 +236,9 @@ for ci, cent in enumerate(centroids):
         mcolor = np.array(pal[ci])
         if gi>0:
             mcolor*= 1./(1+gi)
-        print gi
+
         mcolor = tuple(mcolor)
-        print mcolor
+
         if type(axes) is np.ndarray:
             cur_axe = axes[ci]
         else:

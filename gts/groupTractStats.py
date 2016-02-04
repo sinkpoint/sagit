@@ -40,24 +40,7 @@ from dipy.viz import fvtk
 from dipy.viz.colormap import line_colors
 from tractography import TractographyMethod
 from ordered_set import OrderedSet
-# def matchSpacing(reference, moving, output):
-#     ref = nib.load(reference)
-#     ref_zooms = ref.get_header().get_zooms()[:3]
 
-#     mov = nib.load(moving)
-#     mov_data = mov.get_data()
-#     mov_zooms = mov.get_header().get_zooms()[:3]
-#     mov_affine = mov.get_affine()
-
-#     # reslice into reference spacing
-#     data, affine = resample(mov_data, mov_affine, mov_zooms, ref_zooms)
-#     img = nib.Nifti1Image(data, affine)
-
-#     print data.shape
-#     print img.get_header().get_zooms()
-#     print "###"
-
-#     nib.save(img, output)
 
 def getDwiRoiName(config,subj,basename, ref=""):
     c = config    
@@ -92,6 +75,17 @@ class GroupTractStats:
 
         self.config = GtsConfig(conf_file)
 
+        c = self.config
+        path_queue = [
+            c.preprocessed_path,
+            c.processed_path,
+            c.tractography_path,
+            c.ind_roi_path
+        ]
+        for p in path_queue:
+            if not path.isdir(p):
+                mkdir(p)
+
     def _g(self, *args, **kwargs):
         return getGtsFilename(self.config, *args, **kwargs)
 
@@ -110,34 +104,14 @@ class GroupTractStats:
         """
 
         c = self.config
-        # orig_path = c.orig_path
         imgext = c.imgext
-        # prefix = c.prefix
-        # T1_processed_path = c.T1_processed_path
         template_rois= c.template_def
         ind_roi_path = c.ind_roi_path
 
-        for subj in c.subjects:
+        for subject in c.subjects:
+            subj = subject.name
             print '------------------------------projectTemplateToSingle------'
             print subj
-
-
-            # subj_T1 = orig_path+'/'+subj+'_T1'+imgext
-
-            # #subj_pref = T1_processed_path+'/'+self._g(subj, ext=False)
-            # subj_pref = T1_processed_path+'/'+c.prefix+subj+'_'
-
-            # ants_prefix= c.group_prefix
-            # warpAffix = ants_prefix+'InverseWarp.nii.gz'
-            # affAffix = ants_prefix+'Affine.txt'
-
-            # if len(glob(subj_pref+'*'+affAffix)) == 0:
-            #     # can't find affine.txt, assume it's mat
-            #     warpAffix = '1InverseWarp.nii.gz'
-            #     affAffix = '0GenericAffine.mat'
-
-            # subj_warp = subj_pref+warpAffix
-            # subj_affine = subj_pref+affAffix
 
 
             for rname, filename in template_rois.iteritems():
@@ -145,24 +119,13 @@ class GroupTractStats:
                     continue
 
                 basename = filename.split('.')[0]
-                roi = c.template_roi_path+'/'+basename
+                roi = path.join( c.template_roi_path,basename)
                 roiName = path.basename(roi).rsplit('.')[0]
                 inName = roi+imgext
                 outName = self._g(subj, roiName)
-                output = ind_roi_path+'/'+outName
+                output = path.join( ind_roi_path,outName)
 
                 self.ants_apply_transform_average_to_t1(subj, inName, output)
-
-                #cmd="antsApplyTransforms -d 3 -i %s -o %s -r %s -n NearestNeighbor -t [%s,1] -t %s" % (inName, output, subj_T1,  subj_affine, subj_warp)
-
-                #exec_cmd(cmd)
-
-                #cmd="fslmaths %s -kernel sphere 1 -dilM %s" % (output, output)
-                #exec_cmd(cmd)
-
-                #dir_roi = subject_dti_path+'/'+subj+'/'+outName
-                #print 'copy %s to %s' %( output, dir_roi )
-                #shutil.copyfile(output, dir_roi)
 
     # project individual ROI from T1 space to DWI space
     def projectRoiT1ToDwi(self):
@@ -174,7 +137,7 @@ class GroupTractStats:
         T1_processed_path = c.T1_processed_path
         processed_path = c.processed_path
         ind_roi_path = c.ind_roi_path
-
+        fspath = c.default_freesurfer_path
         rois = []
         for k in c.template_def:
             if k=='reference':
@@ -186,14 +149,21 @@ class GroupTractStats:
         self.projectImageT1ToDwi(ind_roi_path, rois, reference='dwi')
         self.projectImageT1ToDwi(ind_roi_path, rois, reference='t1')
 
-        for subj in c.subjects:
-            fspath = c.subject_freesurfer_path+'/'+subj+'/mri'
-            fs_t1_file = c.preprocessed_path +'/'+ self._g(subj,'fs','T1', prefix=False)
-            fs_aseg_file = c.preprocessed_path +'/'+ self._g(subj,'fs','aseg', prefix=False)
-            fs2fsl_mat = c.preprocessed_path +'/'+ self._g(subj,'fs','fs2fsl','mat.txt', prefix=False, ext=False)
-            subj_aseg = c.preprocessed_path +'/'+ self._g(subj,'aseg', prefix=False)
-            subj_t1 = c.orig_path+'/'+self._g(subj,'T1', prefix=False)
-            dwi_aseg = c.preprocessed_path+'/'+self._g(subj, 'aseg', 'dwi', prefix=False)
+        for subject in c.subjects:
+            subj = subject.name
+
+            if subject.group in c.group_paths:
+                if 'freesurfer' in c.group_paths[subject.group]:
+                    grppath = c.group_paths[subject.group]['freesurfer']
+                    fspath = grppath if grppath else fspath
+
+            fspath = path.join(fspath, subj, 'mri')
+            fs_t1_file = path.join( c.preprocessed_path , self._g(subj,'fs','T1', prefix=False) )
+            fs_aseg_file = path.join( c.preprocessed_path , self._g(subj,'fs','aseg', prefix=False))
+            fs2fsl_mat = path.join( c.preprocessed_path , self._g(subj,'fs','fs2fsl','mat.txt', prefix=False, ext=False))
+            subj_aseg = path.join( c.preprocessed_path , self._g(subj,'aseg', prefix=False))
+            subj_t1 = path.join( c.orig_path,self._g(subj,'T1', prefix=False))
+            dwi_aseg = path.join( c.preprocessed_path,self._g(subj, 'aseg', 'dwi', prefix=False))
 
             print '#',fs2fsl_mat
             if not path.isfile(fs2fsl_mat):
@@ -233,19 +203,20 @@ class GroupTractStats:
         if output_path=='':
             output_path = processed_path
 
-        for subj in c.subjects:
+        for subject in c.subjects:
+            subj = subject.name
             print '------------------------------projectImageT1ToDwi-----------------------------------'
             print subj
 
             for name in name_base:
-                inName = input_path+'/'+self._g(subj, name)
+                inName = path.join( input_path,self._g(subj, name))
                 outName = self._d(subj, name)
-                output = output_path+'/'+outName
+                output = path.join( output_path,outName)
 
 
                 self.ants_apply_transform_t1_to_dwi(subj, inName, output, **kwargs)
 
-                #dir_roi = subject_dti_path+'/'+subj+'/'+outName
+                #dir_roi = path.join( path.join( subject_dti_path,subj,outName))
                 #print 'copy %s to %s' %( output, dir_roi )
                 #shutil.copyfile(output, dir_roi)
 
@@ -264,7 +235,7 @@ class GroupTractStats:
         if reference=='t1':
             ref = '%s_T1.nii.gz' % subj
 
-        ref = orig_path+'/'+ref
+        ref = path.join( orig_path,ref)
 
         invWarpAffix = 'InverseWarp.nii.gz'
         warpAffix = 'Warp.nii.gz'
@@ -276,9 +247,9 @@ class GroupTractStats:
             warpAffix = '1Warp.nii.gz'
             affAffix = '0GenericAffine.mat'
 
-        subj_invWarp = processed_path+'/'+subj_pref+invWarpAffix
-        subj_warp = processed_path+'/'+subj_pref+warpAffix
-        subj_affine = processed_path+'/'+subj_pref+affAffix
+        subj_invWarp = path.join( processed_path,subj_pref+invWarpAffix)
+        subj_warp = path.join( processed_path,subj_pref+warpAffix)
+        subj_affine = path.join( processed_path,subj_pref+affAffix)
 
         if not inverse:
             trans = "-t [%s,1] -t %s" % (subj_affine, subj_invWarp)
@@ -307,7 +278,7 @@ class GroupTractStats:
             output = output+'_'+reference+imgext
         #print '######t1_to_dwi#######',output
 
-        ref = orig_path+'/'+ref
+        ref = path.join( orig_path,ref)
 
         invWarpAffix = 'InverseWarp.nii.gz'
         warpAffix = 'Warp.nii.gz'
@@ -319,11 +290,10 @@ class GroupTractStats:
             warpAffix = '1Warp.nii.gz'
             affAffix = '0GenericAffine.mat'
 
-        subj_invWarp = processed_path+'/'+subj_pref+invWarpAffix
-        subj_warp = processed_path+'/'+subj_pref+warpAffix
-        subj_affine = processed_path+'/'+subj_pref+affAffix
+        subj_invWarp = path.join( processed_path,subj_pref+invWarpAffix)
+        subj_warp = path.join( processed_path,subj_pref+warpAffix)
+        subj_affine = path.join( processed_path,subj_pref+affAffix)
 
-        #cmd="WarpImageMultiTransform 3 %s %s -R %s --use-NN -i %s %s" % (inName, output, subj_FA, subj_affine, subj_invWarp)
         cmd = cmd="antsApplyTransforms -d 3 -i %s -o %s -r %s -n %s " % (input, output, ref, interp)
         if not inverse:
             trans = "-t [%s,1] -t %s" % (subj_affine, subj_invWarp)
@@ -347,22 +317,22 @@ class GroupTractStats:
         ref = '%s_T1.nii.gz' % subj
         if reference=='average':
             ref = c.group_template_file
-        ref = orig_path+'/'+ref
+        ref = path.join( orig_path,ref)
 
         group_prefix = c.group_prefix
         invWarpAffix = group_prefix+'InverseWarp.nii.gz'
         warpAffix = group_prefix+'Warp.nii.gz'
         affAffix = group_prefix+'Affine.txt'
 
-        if len(glob(processed_path+'/'+subj_pref+'*'+affAffix)) == 0:
+        if len(glob(path.join(processed_path,subj_pref+'*'+affAffix))) == 0:
             # can't find affine.txt, assume it's mat
             invWarpAffix = '1InverseWarp.nii.gz'
             warpAffix = '1Warp.nii.gz'
             affAffix = '0GenericAffine.mat'
 
-        subj_invWarp = processed_path+'/'+subj_pref+invWarpAffix
-        subj_warp = processed_path+'/'+subj_pref+warpAffix
-        subj_affine = processed_path+'/'+subj_pref+affAffix
+        subj_invWarp = path.join( processed_path,subj_pref+invWarpAffix)
+        subj_warp = path.join( processed_path,subj_pref+warpAffix)
+        subj_affine = path.join( processed_path,subj_pref+affAffix)
 
         if not inverse:
             trans = "-t [%s,1] -t %s" % (subj_affine, subj_invWarp)
@@ -386,22 +356,22 @@ class GroupTractStats:
         ref = '%s_T1.nii.gz' % subj
         if reference=='average':
             ref = c.group_template_file
-        ref = orig_path+'/'+ref
+        ref = path.join( orig_path,ref)
 
         group_prefix = c.group_prefix
         invWarpAffix = group_prefix+'InverseWarp.nii.gz'
         warpAffix = group_prefix+'Warp.nii.gz'
         affAffix = group_prefix+'Affine.txt'
 
-        if len(glob(processed_path+'/'+subj_pref+'*'+affAffix)) == 0:
+        if len(glob(path.join(processed_path,subj_pref+'*'+affAffix))) == 0:
             # can't find affine.txt, assume it's mat
             invWarpAffix = '1InverseWarp.nii.gz'
             warpAffix = '1Warp.nii.gz'
             affAffix = '0GenericAffine.mat'
 
-        subj_invWarp = processed_path+'/'+subj_pref+invWarpAffix
-        subj_warp = processed_path+'/'+subj_pref+warpAffix
-        subj_affine = processed_path+'/'+subj_pref+affAffix
+        subj_invWarp = path.join( processed_path,subj_pref+invWarpAffix)
+        subj_warp = path.join( processed_path,subj_pref+warpAffix)
+        subj_affine = path.join( processed_path,subj_pref+affAffix)
 
         #cmd="WarpImageMultiTransform 3 %s %s -R %s --use-NN -i %s %s" % (inName, output, subj_FA, subj_affine, subj_invWarp)
         cmd = cmd="antsApplyTransforms -d 3 -i %s -o %s -r %s -n %s " % (input, output, ref, interp)
@@ -418,14 +388,22 @@ class GroupTractStats:
 
     def preprocessDWI(self):
         c = self.config
-        dwi_path = c.dwi_base_path
+        dwi_path = c.default_dwi_path
         root_path = getcwd()
-        for subj in c.subjects:
+        for subject in c.subjects:
+            subj = subject.name
+
+            if subject.group in c.group_paths:
+                if 'dwi' in c.group_paths[subject.group]:
+                    grpdwipath = c.group_paths[subject.group]['dwi']
+                    dwi_path = grpdwipath if grpdwipath else dwi_path
+
             print '--------------------------------preprocessDWI---------------------------------'
             subj_path = path.join(dwi_path,subj)
             chdir(subj_path)
             if c.dwi_autodetect_folder:
-                dwi_folder = glob("*DTI*60*")[0]
+                print c.dwi_autodetect_folder
+                dwi_folder = glob(c.dwi_autodetect_folder)[0]
             else:
                 dwi_folder = ''
             chdir(path.join(dwi_folder,'nifti'))
@@ -438,7 +416,7 @@ class GroupTractStats:
 
                 #cmd="slicerFileConvert.sh -i vol0000.nii.gz -o %s/%s_b0.nii.gz" % (orig_path, subj)
                 #
-            cmd="fslmaths Motion_Corrected_DWI_nobet.nii.gz -Tmean %s" % (c.orig_path+'/'+subj+'_MDWI')
+            cmd="fslmaths Motion_Corrected_DWI_nobet.nii.gz -Tmean %s" % (path.join(c.orig_path,subj+'_MDWI'))
             exec_cmd(cmd)
 
             cmd="slicerTensorScalar.sh -i DWI_CORRECTED.nhdr -p %s_ -d %s" % (subj,c.orig_path)
@@ -446,7 +424,7 @@ class GroupTractStats:
 
             chdir(root_path)
 
-            #shutil.copyfile('T1s/orig/'+subj+'.nii.gz', c.orig_path+'/'+subj+'_T1.nii.gz')
+            #shutil.copyfile('T1s/orig/'+subj+'.nii.gz', path.join(c.orig_path,subj+'_T1.nii.gz'))
 
         chdir(root_path)
 
@@ -467,7 +445,8 @@ class GroupTractStats:
         betfiles = ""
         #_SIMULATE = True
 
-        for subj in c.subjects:
+        for subject in c.subjects:
+            subj = subject.name
             chdir(orig_path)
             print getcwd()
 
@@ -516,7 +495,8 @@ class GroupTractStats:
         print '===========================seedIndividualTracts============================'        
         c = self.config
         origin=getcwd()
-        dwi_path = c.dwi_base_path
+        dwi_path = c.default_dwi_path
+
 
         orig_path = c.orig_path
         imgext = c.imgext
@@ -538,11 +518,17 @@ class GroupTractStats:
             fp.write('subject,method,roi,filter,time\n')        
 
 
-        for subj in c.subjects:
+        for subject in c.subjects:
+            subj = subject.name
             print '-----------------------------------------------------------------'
             print subj
-            subjdir = tractography_path+'/'+subj+'/'
+            subjdir = path.join( tractography_path,subj)
             subjRes = { 'name' : subj }
+
+            if subject.group in c.group_paths:
+                if 'dwi' in c.group_paths[subject.group]:
+                    grpdwipath = c.group_paths[subject.group]['dwi']
+                    dwi_path = grpdwipath if grpdwipath else dwi_path            
 
             if not path.isdir(subjdir) or reorganize_paths:
                 ## setup subject tractography directory
@@ -559,7 +545,7 @@ class GroupTractStats:
 
                 
                 if c.dwi_autodetect_folder:
-                    dwi_folder = glob("*DTI*60*")[0]
+                    dwi_folder = glob(c.dwi_autodetect_folder)[0]
                 else:
                     dwi_folder = ''
                 chdir(path.join(dwi_folder,'nifti'))
@@ -590,35 +576,31 @@ class GroupTractStats:
                 # once slicer reads the file, it will convert the file it's a space that it understands                
                 header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
                 writer = NrrdWriter()
-                writer.write(header, subjdir+'/'+ras_corrected_file)
+                writer.write(header, path.join(subjdir,ras_corrected_file))
                 
-
-                #dwiCorrectRas(dwi_file+'.nhdr', subj+'_test.nhdr')
-
 
                 # generate Tensor, FA, RD, AD, MD maps
                 cmd="slicerTensorScalar.sh -i %s -p %s_ -d %s" % (slicer_comp_file, subj,subjdir)
-
                 exec_cmd(cmd)
 
 
                 # copy t1s over
                 t1i = self._g(subj, 'invDeformed', 'DWS')
                 t1o = self._g(subj, 'T1', 'dwi', prefix=False)
-                shutil.copyfile(processed_path+'/'+t1i, subjdir+'/'+t1o)
+                shutil.copyfile(path.join(processed_path,t1i),path.join( subjdir,t1o))
 
                 t1i = self._g(subj, 'invDeformed', 'T1')
                 t1o = self._g(subj, 'T1', prefix=False)
-                shutil.copyfile(processed_path+'/'+t1i, subjdir+'/'+t1o)
+                shutil.copyfile(path.join(processed_path,t1i),path.join( subjdir,t1o))
 
                 # copy over MDWI files, this should be in preprocessing step
                 t1i = self._g(subj, 'MDWI', prefix=False)
                 t1o = t1i
-                shutil.copyfile(orig_path+'/'+t1i, subjdir+'/'+t1o)
+                shutil.copyfile(path.join(orig_path,t1i),path.join( subjdir,t1o))
 
                 # copy freesurfer segmentation to tractography folder
                 dwi_aseg = self._g(subj, 'aseg', 'dwi', prefix=False)
-                shutil.copyfile(c.preprocessed_path+'/'+dwi_aseg, subjdir+'/'+dwi_aseg)                
+                shutil.copyfile(path.join(c.preprocessed_path,dwi_aseg),path.join( subjdir,dwi_aseg))                
 
             ############# Deal with ROIs 
 
@@ -640,14 +622,14 @@ class GroupTractStats:
                 if roi.type == 'from_template':
                     roi_file = roi.get_filename(subj)
 
-                    shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
+                    shutil.copyfile(path.join(processed_path,roi_file), path.join(subjdir,roi_file))
                     roi_filebase = roi_file.split('.')[0]
 
                     cmd="slicerFileConvert.sh %s %s " % (roi_file, roi_filebase+'.nhdr');
                     exec_cmd(cmd, display=False)
 
                     roi_file = roi.get_filename(subj, ref='t1')
-                    shutil.copyfile(processed_path+'/'+roi_file, subjdir+'/'+roi_file)
+                    shutil.copyfile(path.join(processed_path,roi_file), path.join(subjdir,roi_file))
             stream_map = {}
             fiber_name = ''
             method_name = ''
@@ -725,12 +707,13 @@ class GroupTractStats:
     def tracts_to_density(self, tracts_map):
         print '===================== TRACTS TO DENSITY ======================='
         c = self.config
-        for subj in c.subjects:
-            chdir(c.tractography_path+'/'+subj)
+        for subject in c.subjects:
+            subj = subject.name
+            chdir(path.join(c.tractography_path,subj))
             print '========== %s =========' % subj
 
             ref_file = 'ANTS_%s_invDeformed_T1.nii.gz' % subj
-            ref_file = c.processed_path+'/' + ref_file
+            ref_file = path.join(c.processed_path,ref_file)
 
             for method in tracts_map.keys():
                 print '== Method %s ' % method
@@ -824,8 +807,9 @@ class GroupTractStats:
                 });
                 """
 
-                for subj in c.subjects:
-                    subj_tractography_path = tractography_path+'/'+subj+'/'
+                for subject in c.subjects:
+                    subj = subject.name
+                    subj_tractography_path = path.join( tractography_path,subj)
                     print subj_tractography_path
                     chdir(subj_tractography_path)
                     print '-------------------------viewTracks---------------------------'
@@ -909,10 +893,11 @@ class GroupTractStats:
         if not path.isdir(img_path):
             mkdir(img_path)
 
-        for subj in c.subjects:
-            chdir(c.tractography_path_full+'/'+subj)
+        for subject in c.subjects:
+            subj = subject.name
+            chdir(path.join(c.tractography_path_full,subj))
             for method, file_list in stream_map.iteritems():
-                method_path = img_path+'/'+method
+                method_path = path.join( img_path,method)
 
                 if not path.isdir(method_path):
                     mkdir(method_path)
@@ -942,7 +927,7 @@ class GroupTractStats:
                     #axial
                     cam = fvtk.camera(ren, pos=(0,0,-1), focal=(0,0,0), viewup=(0,1,0))
                     imgfile = self._g(subj, path.splitext(filename)[0],'axial.png', prefix=False, ext=False)
-                    imgout = method_path+'/'+imgfile
+                    imgout = path.join( method_path,imgfile)
                     print 'Save %s' % imgout
                     fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
 
@@ -953,7 +938,7 @@ class GroupTractStats:
 
                     cam = fvtk.camera(ren, pos=(0,1,0), focal=(0,0,0), viewup=(0,0,1))
                     imgfile = self._g(subj, path.splitext(filename)[0],'coronal.png', prefix=False, ext=False)
-                    imgout = method_path+'/'+imgfile
+                    imgout = path.join( method_path,imgfile)
                     print 'Save %s' % imgout
                     fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
 
@@ -965,7 +950,7 @@ class GroupTractStats:
 
                     cam = fvtk.camera(ren, pos=(-1,0,0), focal=(0,0,0), viewup=(0,0,1))
                     imgfile = self._g(subj, path.splitext(filename)[0],'sag.png', prefix=False, ext=False)
-                    imgout = method_path+'/'+imgfile
+                    imgout = path.join( method_path,imgfile)
                     print 'Save %s' % imgout
                     fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
 
@@ -977,7 +962,7 @@ class GroupTractStats:
 
                     cam = fvtk.camera(ren, pos=(-1,1,1), focal=(0,0,0), viewup=(0,0,1))
                     imgfile = self._g(subj, path.splitext(filename)[0],'persp.png', prefix=False, ext=False)
-                    imgout = method_path+'/'+imgfile
+                    imgout = path.join( method_path,imgfile)
                     print 'Save %s' % imgout
                     fvtk.record(ren, n_frames=1, out_path=imgout, size=(1024,768))
 
@@ -1011,8 +996,9 @@ class GroupTractStats:
         print '===================== PERFORM CONJUNCTION ======================='
         root = getcwd()
 
-        for subj in c.subjects:
-            chdir(tract_path+'/'+subj)
+        for subject in c.subjects:
+            subj = subject.name
+            chdir(path.join(tract_path,subj))
             subj_files = []
 
             print '--------------------------- %s ----------------------------------' % subj
@@ -1033,7 +1019,7 @@ class GroupTractStats:
                     den_t1_file = self._g(fext[0], affix, 'T1', prefix=False)
                     #print '#',den_t1_file
                     output = self._g(subj, path.basename(fext[0]), affix, prefix=False)
-                    output = c.processed_path+'/'+output
+                    output = path.join( c.processed_path,output)
                     print '>',output
 
                     if path.isfile(den_file):
@@ -1045,7 +1031,7 @@ class GroupTractStats:
                         trans += ' '+self.ants_apply_transform_t1_to_dwi(subj, den_file, den_t1_file, reference='t1', inverse=True, just_transform_param=True)
 
                         ref = c.group_template_file # % subj
-                        ref = c.orig_path+'/'+ref
+                        ref = path.join( c.orig_path,ref)
                         interp = 'NearestNeighbor'
 
                         cmd=('antsApplyTransforms -d 3 -i %s -o %s -r %s -n %s ' % (den_file, output, ref, interp))
@@ -1054,7 +1040,7 @@ class GroupTractStats:
                             exec_cmd(cmd)
 
                     else:                        
-                        not_found_table.append(subj+'/'+den_file)
+                        not_found_table.append(path.join(subj,den_file))
                     subj_files.append((output, method, seed_name))
 
             image_table.append(subj_files)

@@ -3,7 +3,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-myreqs = parse_requirements('requirements.txt')
+#myreqs = parse_requirements('requirements.txt')
 
 config = {
     'description': 'SAGIT: Selecive Automated Group Integrated Tractography',

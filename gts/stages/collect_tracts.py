@@ -1,10 +1,11 @@
 from gts import exec_cmd
 import os
 
-def per_subj_tract_to_template_space(self, subj, **kwargs):
+def per_subj_tract_to_template_space(self, subject, **kwargs):
     dry_run = False
     if 'dry_run' in kwargs:
         dry_run = kwargs['dry_run']
+    subj = subject.name
     print '============================',subj
     tract_path = self.config.tractography_path_full
     output_path = os.path.join(self.config.processed_path, 'tractography')
@@ -42,7 +43,7 @@ def per_subj_tract_to_template_space(self, subj, **kwargs):
             cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_FA.nii.gz -n FA' % (trkwscalar, trkwscalar, subj)
 
             exec_cmd(cmd, dryrun=dry_run)
-            cmd = 'trkmanage.py init -i %s -d %s' % (trkwscalar, tdb_file)
+            cmd = 'fascicle init -i %s -d %s' % (trkwscalar, tdb_file)
 
             exec_cmd(cmd, dryrun=dry_run)
 
@@ -52,7 +53,7 @@ def per_subj_tract_to_template_space(self, subj, **kwargs):
     points_before = 'trk_points_dws.csv'
     points_after = 'trk_points_tps.csv'
 
-    cmd = 'trkmanage.py expcsv -d %s -o %s' % (tdb_file, points_before)
+    cmd = 'fascicle expcsv -d %s -o %s' % (tdb_file, points_before)
     exec_cmd(cmd, dryrun=dry_run)
 
     # transform points to template space
@@ -61,7 +62,7 @@ def per_subj_tract_to_template_space(self, subj, **kwargs):
 
     mapping_name = 'template_space'
     # reimport transformed points to tdb
-    cmd = 'trkmanage.py tradd -d %s -i %s -n %s -p "%s"' % (tdb_file, points_after, mapping_name, tparams)
+    cmd = 'fascicle tradd -d %s -i %s -n %s -p "%s"' % (tdb_file, points_after, mapping_name, tparams)
     exec_cmd(cmd, dryrun=dry_run)
 
     out_path = os.path.join(self.config.processed_path, 'tractography')
@@ -71,7 +72,7 @@ def per_subj_tract_to_template_space(self, subj, **kwargs):
     # export the transformed points into tract vtk
     for tfile in file_queue:
         out_name = os.path.join(out_path,'_'.join([subj,tfile]))
-        cmd = 'trkmanage.py expvtk -d %s -t %s -m %s -o %s' % (tdb_file,tfile,mapping_name,out_name)
+        cmd = 'fascicle expvtk -d %s -t %s -m %s -o %s' % (tdb_file,tfile,mapping_name,out_name)
 
         exec_cmd(cmd, dryrun=dry_run)
 
@@ -102,9 +103,9 @@ def tracts_merge(self, **kwargs):
             for idx,[subj,grp] in self.config.subject_df.iterrows():
                 subj = subj.strip()
                 trk_file = '_'.join([subj,tbasename+'.vtp'])
-                cmd = 'trkmanage.py init -d %s.tdb -i %s --group %s' % (merged_file_basename, trk_file, grp)
+                cmd = 'fascicle init -d %s.tdb -i %s --group %s' % (merged_file_basename, trk_file, grp)
                 exec_cmd(cmd)
-            cmd = 'trkmanage.py expvtk -d %s.tdb --merged -o %s.vtp' % (merged_file_basename,merged_file_basename)
+            cmd = 'fascicle expvtk -d %s.tdb --merged -o %s.vtp' % (merged_file_basename,merged_file_basename)
             exec_cmd(cmd)
 
 

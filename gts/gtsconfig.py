@@ -6,6 +6,9 @@ from os import getcwd
 from os import path
 from os.path import abspath
 import pandas as pd
+
+from collections import namedtuple
+
 class GtsConfig(object):
     _CONFIG={
     'tract_time_log_file' : 'tract_time_stats.csv'
@@ -25,8 +28,8 @@ class GtsConfig(object):
             self._CONFIG["processed_path"] = "./processed"
             self._CONFIG["subject_dti_path"] = '/media/AMMONIS/projects/controls'
             self._CONFIG["template_roi_path"] = "/media/AMMONIS/proejcts/mtt_anat/C5_to_avgs/processed"
-            self._CONFIG['dwi_base_path']  = '/media/AMMONIS/scans/normals/'
-            self._CONFIG['dwi_autodetect_folder'] = True,
+            self._CONFIG['default_dwi_path']  = '/media/AMMONIS/scans/normals/'
+            self._CONFIG['dwi_autodetect_folder'] = "*DTI*",
             self._CONFIG["tractography_path"] = './tractography'
             self._CONFIG["ind_roi_path"] = "./rois"
             self._CONFIG["prefix"]="ANTS_"
@@ -78,17 +81,26 @@ class GtsConfig(object):
             self.rois_def = {k:gtsroi.GtsRoi(k, v, global_config=self) for (k,v) in self.rois_def.iteritems()}        
 
     def load_subjects(self, filename):
+        Subject = namedtuple('Subject', 'name group')
+
+        self.subjects = []
+
         if filename.find('.txt') > -1:
             with open(filename, "r") as f:
-                self.subjects= [ l.rstrip() for l in f ]
+                self.subjects= [ Subject(name=l.rstrip(),group='0') for l in f ]
         elif filename.find('.csv') > -1:
             self.subject_df = pd.read_csv(filename, skipinitialspace=True)
-            print self.subject_df
-            self.subjects = [i.strip() for i in self.subject_df['subject'].tolist()]
+            for i, name, group in self.subject_df.itertuples():
+                print i,name,group
+                self.subjects.append(Subject(name=name, group=str(group)))
+
+            #print self.subjects_df.values.tolist()
+            #self.subjects = [i.strip() for i in self.subject_df.tolist()]
+            #print self.subjects
 
     def loadFromJson(self,conf=""):
         if not conf == "":
-            print '>',conf
+            print '#> ',conf
             self.conf_file = conf            
             fp = open(conf, 'r')
             #parser = JsonComment(json)
