@@ -20,8 +20,9 @@ config = {
     # pip to create the appropriate form of executable for the target platform.
     'entry_points': {
         'console_scripts': [
-            'gts_scalar_to_tracts=gts.scripts.gts_scalar_to_tracts:main',
-            'gts_tracts_to_density=gts.scripts.gts_tracts_to_density:main',
+            'sagit_scalar_to_tracts=gts.scripts.gts_scalar_to_tracts:main',
+            'sagit_tracts_to_density=gts.scripts.gts_tracts_to_density:main',
+            'sagit_dwi_to_apm=gts.scripts.sh_to_apm:main',
         ],
     },    
 }

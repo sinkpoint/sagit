@@ -36,6 +36,8 @@ class Xst(slicer.Slicer3):
             header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
             writer = NrrdWriter()
             writer.write(header, ras_corrected_file)
+
+            print header.b0num
             if header.b0num > 1:
                 cmd = 'b0avg.py -i %s -o %s' % (ras_corrected_file,ras_corrected_file)
                 exec_cmd(cmd)

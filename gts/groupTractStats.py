@@ -137,7 +137,7 @@ class GroupTractStats:
         T1_processed_path = c.T1_processed_path
         processed_path = c.processed_path
         ind_roi_path = c.ind_roi_path
-        fspath = c.default_freesurfer_path
+
         rois = []
         for k in c.template_def:
             if k=='reference':
@@ -151,11 +151,13 @@ class GroupTractStats:
 
         for subject in c.subjects:
             subj = subject.name
-
+            fspath = c.default_freesurfer_path
             if subject.group in c.group_paths:
-                if 'freesurfer' in c.group_paths[subject.group]:
+                try:
                     grppath = c.group_paths[subject.group]['freesurfer']
                     fspath = grppath if grppath else fspath
+                except KeyError:
+                    pass
 
             fspath = path.join(fspath, subj, 'mri')
             fs_t1_file = path.join( c.preprocessed_path , self._g(subj,'fs','T1', prefix=False) )
@@ -167,10 +169,10 @@ class GroupTractStats:
 
             print '#',fs2fsl_mat
             if not path.isfile(fs2fsl_mat):
-                cmd = 'mri_convert %s/T1.mgz %s' % (fspath, fs_t1_file)
+                cmd = 'mri_convert %s %s' % (path.join(fspath,'T1.mgz'), fs_t1_file)
                 exec_cmd(cmd)
 
-                cmd = 'mri_convert %s/aparc+aseg.mgz %s' % (fspath, fs_aseg_file)
+                cmd = 'mri_convert %s %s' % (path.join(fspath,'aparc+aseg.mgz'), fs_aseg_file)
                 exec_cmd(cmd)
 
                 cmd = 'flirt -in %s -ref %s -omat %s' % (fs_t1_file, subj_t1, fs2fsl_mat)
@@ -388,22 +390,28 @@ class GroupTractStats:
 
     def preprocessDWI(self):
         c = self.config
-        dwi_path = c.default_dwi_path
         root_path = getcwd()
         for subject in c.subjects:
             subj = subject.name
-
+            dwi_path = c.default_dwi_path
+            dwi_autodetect_folder = c.dwi_autodetect_folder
+            
             if subject.group in c.group_paths:
-                if 'dwi' in c.group_paths[subject.group]:
-                    grpdwipath = c.group_paths[subject.group]['dwi']
+                try:
+                    grouppaths = c.group_paths[subject.group]
+                    grpdwipath = grouppaths['dwi']
                     dwi_path = grpdwipath if grpdwipath else dwi_path
+
+                    dwi_autodetect_folder = grouppaths['dwi_autodetect_folder']
+                except KeyError:
+                    pass
+
 
             print '--------------------------------preprocessDWI---------------------------------'
             subj_path = path.join(dwi_path,subj)
             chdir(subj_path)
-            if c.dwi_autodetect_folder:
-                print c.dwi_autodetect_folder
-                dwi_folder = glob(c.dwi_autodetect_folder)[0]
+            if dwi_autodetect_folder:
+                dwi_folder = glob(dwi_autodetect_folder)[0]
             else:
                 dwi_folder = ''
             chdir(path.join(dwi_folder,'nifti'))
@@ -416,7 +424,7 @@ class GroupTractStats:
 
                 #cmd="slicerFileConvert.sh -i vol0000.nii.gz -o %s/%s_b0.nii.gz" % (orig_path, subj)
                 #
-            cmd="fslmaths Motion_Corrected_DWI_nobet.nii.gz -Tmean %s" % (path.join(c.orig_path,subj+'_MDWI'))
+            cmd="fslmaths DWI_CORRECTED.nii.gz -Tmean %s" % (path.join(c.orig_path,subj+'_MDWI'))
             exec_cmd(cmd)
 
             cmd="slicerTensorScalar.sh -i DWI_CORRECTED.nhdr -p %s_ -d %s" % (subj,c.orig_path)
@@ -427,6 +435,9 @@ class GroupTractStats:
             #shutil.copyfile('T1s/orig/'+subj+'.nii.gz', path.join(c.orig_path,subj+'_T1.nii.gz'))
 
         chdir(root_path)
+
+    def skullStrip(self, bet='0.1'):
+        self.runAntsDwiToT1(bet)
 
     def runAntsDwiToT1(self,bet='0.1'):
         """ Use ANTS to register individual DWI space to T1 space.
@@ -453,21 +464,9 @@ class GroupTractStats:
             cmd='bet2 %s_T1 %s_T1_bet -f %s ' % (subj, subj, bet)
             exec_cmd(cmd)
 
-            _SIMULATE = True
-
-            cmd='bet2 %s_MDWI %s_MDWI_bet -f %s' % (subj, subj, bet)
+            cmd='bet2 %s_MDWI %s_MDWI_bet -m -f %s' % (subj, subj, bet)
             exec_cmd(cmd)
 
-            # erode the mask to remove fringe skull intensities in FA
-            # cmd='fslmaths %s_MDWI_bet_mask -kernel sphere 4 -ero %s_b0_bet_mask' % (subj, subj)
-            # exec_cmd(cmd)
-
-            # cmd='fslmaths %s_FA.nii.gz -mul %s_b0_bet_mask.nii.gz %s_FA_bet.nii.gz' % (subj, subj, subj)
-            # exec_cmd(cmd)
-
-            _SIMULATE = False
-
-            #matchSpacing("%s_MDWI_bet.nii.gz"%subj, "%s_T1_bet.nii.gz"%subj, "%s_T1_bet.nii.gz"%subj)
             bet_files = glob('*bet*')
             for i in bet_files:
                 cmd='mv %s %s' % (i, preprocessed_path)
@@ -484,10 +483,10 @@ class GroupTractStats:
         chdir(root_path)
         antsparam = c.subjects_file
         if c.manual_subjects:
-            antsparam = " ".join(c.subjects)
+            antsparam = " ".join([s.name for s in c.subjects])
 
-        cmd='./research/runAntsFAToT1.sh %s' % antsparam
-        exec_cmd(cmd)
+        #cmd='./research/runAntsFAToT1.sh %s' % antsparam
+        #exec_cmd(cmd)
 
 
     def seedIndividualTracts(self, labels=[1],recompute=False,overwrite=False, reorganize_paths=False, run_unfiltered=True):
@@ -495,7 +494,6 @@ class GroupTractStats:
         print '===========================seedIndividualTracts============================'        
         c = self.config
         origin=getcwd()
-        dwi_path = c.default_dwi_path
 
 
         orig_path = c.orig_path
@@ -525,10 +523,18 @@ class GroupTractStats:
             subjdir = path.join( tractography_path,subj)
             subjRes = { 'name' : subj }
 
+            dwi_path = c.default_dwi_path
+            dwi_autodetect_folder = c.dwi_autodetect_folder
             if subject.group in c.group_paths:
-                if 'dwi' in c.group_paths[subject.group]:
-                    grpdwipath = c.group_paths[subject.group]['dwi']
-                    dwi_path = grpdwipath if grpdwipath else dwi_path            
+                try:
+                    grouppaths = c.group_paths[subject.group]
+                    grpdwipath = grouppaths['dwi']
+                    dwi_path = grpdwipath if grpdwipath else dwi_path       
+
+                    dwi_autodetect_folder = grouppaths['dwi_autodetect_folder']     
+                except KeyError:
+                    pass
+
 
             if not path.isdir(subjdir) or reorganize_paths:
                 ## setup subject tractography directory
@@ -544,8 +550,8 @@ class GroupTractStats:
                 chdir(subj_source_path)
 
                 
-                if c.dwi_autodetect_folder:
-                    dwi_folder = glob(c.dwi_autodetect_folder)[0]
+                if dwi_autodetect_folder:
+                    dwi_folder = glob(dwi_autodetect_folder)[0]
                 else:
                     dwi_folder = ''
                 chdir(path.join(dwi_folder,'nifti'))
@@ -568,15 +574,15 @@ class GroupTractStats:
                 cmd = 'slicerDwiFileConvert.sh %s %s' % (path.join(subj_dwi_source_path_abs, dwi_file), slicer_comp_file)
                 exec_cmd(cmd)
 
-                
+                # following is delegated to xst tractography class
                 # This is required as XST cannot correct read space directions other than RAS                             
-                ras_corrected_file = subj+'_dwi_ras.nhdr'
-                reader = NrrdReader()
-                header, b = reader.load(slicer_comp_file)
-                # once slicer reads the file, it will convert the file it's a space that it understands                
-                header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
-                writer = NrrdWriter()
-                writer.write(header, path.join(subjdir,ras_corrected_file))
+                # ras_corrected_file = subj+'_dwi_ras.nhdr'
+                # reader = NrrdReader()
+                # header, b = reader.load(slicer_comp_file)
+                # # once slicer reads the file, it will convert the file it's a space that it understands                
+                # header.correctSpaceRas() # convert spacing to RAS, this is needed for xst, else geometry will be inverted.
+                # writer = NrrdWriter()
+                # writer.write(header, path.join(subjdir,ras_corrected_file))
                 
 
                 # generate Tensor, FA, RD, AD, MD maps
@@ -644,7 +650,17 @@ class GroupTractStats:
                 label_str = k
                 seed_map['name'] = k
 
-                for imethod in c.tract_method:
+                ## determine the methods to run for this seed_def
+                methods_queue = []
+
+                try:
+                    seed_methods = seed_map["methods"]
+                    for s in seed_methods:
+                        methods_queue.append(c.tract_method[s])
+                except KeyError:
+                    methods_queue = c.tract_method.values()
+
+                for imethod in methods_queue:
                     method_label  = imethod['label']
 
 
@@ -672,28 +688,7 @@ class GroupTractStats:
 
                     with open(TRACT_TIME_LOG, 'a') as fp:
                         fp.write(report+'\n')                                                
-                    
-
-                    #     if not mrtrix_has_recompute:
-                    #         recompute = True
-                    #         mrtrix_has_recompute = True
-                    #     else:
-                    #         recompute = False
-                        
-
-
-                    #     fiber_name = gtracts.tractsMrtrix(subj, roibase, excludebase, ilabel, config=c, label_str=label_str, label_include=c.roi_includes[i],
-                    #                  label_exclude=c.roi_excludes[i], recompute=recompute, overwrite=overwrite, params=iparam, method_label=method_label)
-
-                    # elif itract == 'xst':
-                    #     print '\n-- PERFORM XST'
-                    #     fiber_name = gtracts.tractsXst(subj, roibase, excludebase, ilabel, dwi_file=ras_corrected_file, config=c, label_str=label_str,
-                    #               label_include=c.roi_includes[i],label_exclude=c.roi_excludes[i], overwrite=overwrite, params=iparam)
-                    # elif itract =='slicer':
-                    #     print '\n-- PERFORM SLICER'
-                    #     fiber_name = gtracts.tractsSlicer(subj, roibase, excludebase, ilabel, config=c, label_str=label_str,
-                    #               label_include=c.roi_includes[i],label_exclude=c.roi_excludes[i], overwrite=overwrite, params=iparam)
-
+                
                     if not stream_map.has_key(method_label):
                             stream_map[method_label] = [fiber_name]
                     else:
@@ -1247,10 +1242,13 @@ class GroupTractStats:
 
                 for (x,y), val in np.ndenumerate(img_matrix):
                     print x,y,val
-                    xpos = res[0]*x + label_padding
-                    ypos = res[1]*y + label_padding_y
-                    im = Image.open(val)
-                    new_img.paste(im, (xpos, ypos))
+                    try:
+                        xpos = res[0]*x + label_padding
+                        ypos = res[1]*y + label_padding_y
+                        im = Image.open(val)
+                        new_img.paste(im, (xpos, ypos))
+                    except IOError:
+                        print '! No such file {}'.format(val)
 
                 # draw method labels on left side
                 for i in range(0,num_methods):

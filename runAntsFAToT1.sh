@@ -66,7 +66,7 @@ do
 	echo $subj	
 	T1="${subj}_T1_bet.nii.gz"
 	MDWI="${subj}_MDWI_bet.nii.gz"	
-	FA="${subj}_FA_bet.nii.gz"
+	AP="${subj}_AP_bet.nii.gz"
 	
 	outRoot="$OutPrefix${subj}"
 	outFinal="${outRoot}"
@@ -80,7 +80,7 @@ do
 	then
 
 		FIXED="$inputDir/$T1"
-		MOVING="$inputDir/$MDWI"		
+		MOVING="$inputDir/$AP"		
 		OUT="$outDir/$outRoot"
 
 		# different metric choices for the user
