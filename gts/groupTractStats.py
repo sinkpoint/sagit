@@ -31,7 +31,7 @@ from PIL import ImageFont
 import gc
 import gts.meas.imagescore as imgs
 import time
-import vol2iso_viz
+from gts.scripts import vol2iso_viz
 import vtk
 
 from gts.maps import tract_density as tdm

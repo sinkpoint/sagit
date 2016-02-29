@@ -6,13 +6,15 @@ from os import getcwd
 from os import path
 from os.path import abspath
 import pandas as pd
-
+from glob import glob
 from collections import namedtuple
 
 class GtsConfig(object):
     _CONFIG={
     'tract_time_log_file' : 'tract_time_stats.csv'
     }
+
+    Subject = namedtuple('Subject', 'name group dwi_path freesurfer_path dwi_autodetect_folder')
 
     def __init__(self,conf_file=None):
         self._SIMULATE = False
@@ -40,6 +42,7 @@ class GtsConfig(object):
             self.subjects = []
 
         else:
+            self.conf_file = conf_file
             self.loadFromJson(conf_file)
             self.configure()
 
@@ -48,7 +51,7 @@ class GtsConfig(object):
         try:
             return self._CONFIG[var]
         except KeyError:
-            return False
+            return ''
     def __setattr__(self,var,val):
         if var == '_CONFIG':
             super(GtsConfig, self).__setattr__(var, val)
@@ -75,33 +78,44 @@ class GtsConfig(object):
 
         if not self.manual_subjects:
             self.load_subjects(self.subjects_file)
+        else:
+            self.subjects = [self.subj_to_tuple(s) for s in self.subjects]
         print self.subjects            
 
         if 'rois_def' in self._CONFIG:
             self.rois_def = {k:gtsroi.GtsRoi(k, v, global_config=self) for (k,v) in self.rois_def.iteritems()}        
 
     def load_subjects(self, filename):
-        Subject = namedtuple('Subject', 'name group')
-
         self.subjects = []
 
         if filename.find('.txt') > -1:
             with open(filename, "r") as f:
-                self.subjects= [ Subject(name=l.rstrip(),group='0') for l in f ]
+                self.subjects= [ self.subj_to_tuple(l) for l in f ]
         elif filename.find('.csv') > -1:
             self.subject_df = pd.read_csv(filename, skipinitialspace=True)
-            for i, name, group in self.subject_df.itertuples():
+            for i, name, grp in self.subject_df.itertuples():
+                group = str(grp)
                 print i,name,group
-                self.subjects.append(Subject(name=name, group=str(group)))
+                mydwi = self.default_dwi_path
+                myfs = self.default_freesurfer_path
+                mydwiauto = self.dwi_autodetect_folder
 
-            #print self.subjects_df.values.tolist()
-            #self.subjects = [i.strip() for i in self.subject_df.tolist()]
-            #print self.subjects
+                if self.group_paths and str(group) in self.group_paths:
+                    try:
+                        mydwi = self.group_paths[group]['dwi']
+                        mydwiauto = self.group_paths[group]['dwi_autodetect_folder']
+                        myfs = self.group_paths[group]['freesurfer']
+                    except KeyError:
+                        pass
+
+                self.subjects.append(self.Subject(name=name, group=str(group), dwi_path=mydwi, freesurfer_path=myfs, dwi_autodetect_folder=mydwiauto))
+
+    def subj_to_tuple(self, name):
+        return self.Subject(name=name.rstrip(),group='0', dwi_path=self.default_dwi_path, freesurfer_path=self.default_freesurfer_path, dwi_autodetect_folder=self.dwi_autodetect_folder)
 
     def loadFromJson(self,conf=""):
         if not conf == "":
             print '#> ',conf
-            self.conf_file = conf            
             fp = open(conf, 'r')
             #parser = JsonComment(json)
             config_map = commentjson.load(fp)
