@@ -56,10 +56,11 @@ docs/_build/
 # PyBuilder
 target/
 
+*.csv
 *.vtk
 *.nii*
 *.html
 *.sublime*
 *.mat
-
+.fuse*
 .idea

@@ -33,7 +33,48 @@ from statsmodels.stats.multicomp import MultiComparison
 from statsmodels.sandbox.stats.multicomp import multipletests
 from scipy import stats
 
+
+def getNiftiAsScalarField(filename):
+    import nibabel as nib
+
+    fimg = nib.load(filename)
+    hdr = fimg.get_header()
+    data = fimg.get_data()
+
+    print data.shape
+
+    af = fimg.get_affine()
+    print af
+    origin = af[:3,3]
+    print origin
+    
+    stride = [af[0,0],af[1,1],af[2,2]]
+    print stride
+
+    if stride[0] < 0:
+        print 'flipX'
+        data = data[::-1,:,:]
+        origin[0] *= -1
+        #data = np.flipud(data)
+    if stride[1] < 0:
+        print 'flipY'           
+        data = data[:,::-1,:]
+        origin[1] *= -1
+    if stride[2] < 0:
+        print 'flipZ'           
+        data = data[:,:,::-1]     
+        origin[2] *= -1      
+
+    src = mlab.pipeline.scalar_field(data)
+    src.spacing = hdr.get_zooms()
+    src.origin = origin
+    print src.origin
+    src.update_image_data = True    
+    return src, data
+
 def position_stats(df):
+        from statsmodels.stats.weightstats import ztest
+        from functools32 import partial, wraps
         POS = df.position.unique()
         POS.sort()
         print len(POS)
@@ -41,45 +82,70 @@ def position_stats(df):
         allpvals = None
         header = None
         DF = None
+
+        ttest_ind_nev = wraps(partial(stats.ttest_ind, equal_var=False))(stats.ttest_ind)
+        mwu_test = wraps(partial(stats.mannwhitneyu, use_continuity=False))(stats.mannwhitneyu)
+
+        print df
+
+        stats_test = ttest_ind_nev
         for pos in POS:
             print pos
             data = df[df.position==pos]
+            data = data.groupby(['sid']).mean()
+            print data
 
-            cross = smf.ols(model, data=data).fit()
-            anova = sm.stats.anova_lm(cross, type=1)
+
+            #cross = smf.ols(model, data=data).fit()
+            #anova = sm.stats.anova_lm(cross, type=1)
             mcp = MultiComparison(data.value, data.group)
-            rtp = mcp.allpairtest(stats.ttest_ind, method='bonferroni')
+
+            rtp = mcp.allpairtest(stats_test, method='fdr_bh')
             #print rtp[0]
             mheader = [ "{}-{}".format(i[0],i[1]) for i in rtp[2] ]
             if not header or len(mheader) > len(header):
                 header = mheader
             pvals = rtp[1][0][:,1]
-            print mheader
             print pvals
+            # print mheader
+            # print pvals
             ndf = pd.DataFrame(data=[pvals], columns=mheader)
             if allpvals is None:
                 allpvals = ndf
             else:
                 allpvals = pd.concat([allpvals,ndf])
-      
-        flatten = allpvals.values.ravel()
-        mcpres = multipletests(flatten, alpha=0.05, method='bonferroni')
-        print mcpres
-        corr_pvals = np.array(mcpres[1])
-        print corr_pvals
-        corr_pvals = np.reshape(corr_pvals, (len(POS),-1))
+                
+        corr_pvals = allpvals    
+        # flatten = allpvals.values.ravel()
+        # flatten = flatten * 2
+        # mcpres = multipletests(flatten, alpha=0.05, method='fdr_bh')
+        # print mcpres
+        # corr_pvals = np.array(mcpres[1])
+        # print corr_pvals
+        # corr_pvals = np.reshape(corr_pvals, (len(POS),-1))
+
         print corr_pvals
         return pd.DataFrame(data=corr_pvals, columns=header)
 
 def main():
     parser = OptionParser(usage="Usage: %prog [options] <tract.vtp>")
-    parser.add_option("-d", "--dist", dest="dist", default=20, type='int', help="Quickbundle distance threshold")
+    parser.add_option("-d", "--dist", dest="dist", default=20, type='float', help="Quickbundle distance threshold")
     parser.add_option("-n", "--num", dest="num", default=50, type='int', help="Number of subdivisions along centroids")
     parser.add_option("-s", "--scalar", dest="scalar", default="FA", help="Scalar to measure")
     parser.add_option("--curvepoints", dest="curvepoints_file", help="Define a curve to use as centroid. Control points are defined in a csv file in the same space as the tract points. The curve is the vtk cardinal spline implementation, which is a catmull-rom spline.")
     parser.add_option("-l", "--local", dest="is_local", action="store_true", default=False, help="Measure from Quickbundle assigned streamlines. Default is to measure from all streamlines")
+    parser.add_option('--reverse', dest='is_reverse', action='store_true', default=False, help='Reverse the centroid measure stepping order')
+    parser.add_option('--background', dest='bg_file', help='Background NIFTI image')
+    parser.add_option('--pairplot', dest='pairplot',)
+    parser.add_option('--noviz',dest='is_viz', action='store_false', default=True)
+    parser.add_option('--xrange', dest='xrange')
+    parser.add_option('--yrange', dest='yrange')
     (options, args) = parser.parse_args()
 
+    if len(args) == 0:
+        parser.print_help()
+        sys.exit(2)
+        
     QB_DIST = options.dist
     QB_NPOINTS = options.num
     SCALAR_NAME = options.scalar
@@ -108,32 +174,40 @@ def main():
 
     scalars = []
     groups = []
-
+    subjects = []
     pointdata = polydata.GetPointData()
     for si in range(pointdata.GetNumberOfArrays()):
         sname =  pointdata.GetArrayName(si)
+        print sname
         if sname==SCALAR_NAME:
             scalars = vtk_to_numpy(pointdata.GetArray(si))
         if sname=='group':
             groups = vtk_to_numpy(pointdata.GetArray(si))
             groups = groups.astype(int)
+        if sname=='tid':
+            subjects = vtk_to_numpy(pointdata.GetArray(si))
+            subjects = subjects.astype(int)
 
 
     streamlines = []
     stream_scalars = []
     stream_groups = []
     stream_pids = []
+    stream_sids = []
+
     for i in tract_ids:
         # index np.array by a list will get all the respective indices
         streamlines.append(verts[i])
         stream_scalars.append(scalars[i])
         stream_groups.append(groups[i])
         stream_pids.append(i)
+        stream_sids.append(subjects[i])
 
     streamlines = np.array(streamlines)
     stream_scalars = np.array(stream_scalars)
     stream_groups = np.array(stream_groups)
     stream_pids = np.array(stream_pids)
+    stream_sids = np.array(stream_sids)
 
     # get total average direction (where majority point towards)
     avg_d = np.zeros(3)
@@ -212,15 +286,28 @@ def main():
                 ori*=-1
             avg_d += ori
 
+        if options.is_reverse:
+            for i,c in enumerate(centroids):
+                centroids[i] = c[::-1]
+
 
     # prepare mayavi 3d viz
 
 
-    bg_val = 0.6
+    bg_val = 0.
     fig = mlab.figure(bgcolor=(bg_val,bg_val,bg_val))
     scene = mlab.gcf().scene
     fig.scene.render_window.aa_frames = 4
     mlab.draw()
+
+    if options.bg_file:
+        mrsrc, bgdata = getNiftiAsScalarField(options.bg_file)
+        orie = 'z_axes'
+
+        opacity=0.5
+        slice_index = 0
+
+        mlab.pipeline.image_plane_widget(mrsrc, opacity=opacity, plane_orientation=orie, slice_index=int(slice_index), colormap='black-white', line_width=0, reset_zoom=False)
 
     # prepare the plt plot
     len_cent = len(centroids)
@@ -259,6 +346,7 @@ def main():
             cent_scalars = stream_scalars[ind]
             cent_groups = stream_groups[ind]
             cent_pids = stream_pids[ind]
+            cent_sids = stream_sids[ind]
         else:
             # apply each centriod to all the points
             # instead of only their centroid assignments
@@ -266,18 +354,20 @@ def main():
             cent_scalars = stream_scalars
             cent_groups = stream_groups
             cent_pids = stream_pids
+            cent_sids = stream_sids
 
 
         cent_verts = np.vstack(cent_streams)
         cent_scalars = np.concatenate(cent_scalars)
         cent_groups = np.concatenate(cent_groups)
         cent_pids = np.concatenate(cent_pids)
+        cent_sids = np.concatenate(cent_sids)
         cent_color = np.array(pal[ci])
 
         c, labels = kmeans2(cent_verts, cent, iter=1)
 
         cid = np.ones(len(labels))
-        d = {'value':cent_scalars, 'position':labels, 'group':cent_groups, 'pid':cent_pids}
+        d = {'value':cent_scalars, 'position':labels, 'group':cent_groups, 'pid':cent_pids, 'sid':cent_sids}
 
         df = pd.DataFrame(data=d)
         if DATADF is None:
@@ -285,19 +375,19 @@ def main():
         else:
             pd.concat([DATADF, df])
 
-        """
-            Perform stats
-        """   
+        UNIQ_GROUPS = df.group.unique()
+        UNIQ_GROUPS.sort()
 
-        pvalsDf = position_stats(df)
-        logpvals = np.log(pvalsDf)*-1
-        #print logpvals
+        grppal = sns.color_palette("Set2", len(UNIQ_GROUPS))
+
+        print '# UNIQ GROUPS',UNIQ_GROUPS
+
 
         """ 
             plot each group by their position 
         """
 
-        fig = plt.figure()
+        fig = plt.figure(figsize=(14,7))
         ax1 = plt.subplot2grid((4,3),(0,0),colspan=3,rowspan=3)
         ax2 = plt.subplot2grid((4,3),(3,0),colspan=3,sharex=ax1)
         axes = [ax1,ax2]
@@ -307,22 +397,28 @@ def main():
         cent_legend = axes[0].legend(handles=[cent_patch], loc=9)
         axes[0].add_artist(cent_legend)
 
-        pvals = logpvals.mask(pvalsDf >= 0.05 ) 
+        """
+            Perform stats
+        """   
 
-        import matplotlib.ticker as mticker
-        print pvals
-        cmap = mcmap.Reds
-        cmap.set_bad('w',1.)
-        axes[1].pcolormesh(pvals.values.T,cmap=cmap,vmin=0, vmax=10, edgecolors='face', alpha=0.8)
-        axes[1].yaxis.set_major_locator(mticker.MultipleLocator(base=1.0))
-        axes[1].set_yticklabels(pvalsDf.columns.values.tolist(), minor=False)
+        if len(UNIQ_GROUPS) > 1:
+            pvalsDf = position_stats(df)
+            logpvals = np.log(pvalsDf)*-1
+            #print logpvals
 
-        UNIQ_GROUPS = df.group.unique()
-        UNIQ_GROUPS.sort()
 
-        grppal = sns.color_palette("Set2", len(UNIQ_GROUPS))
+            pvals = logpvals.mask(pvalsDf >= 0.05 ) 
 
-        print '# UNIQ GROUPS',UNIQ_GROUPS
+            import matplotlib.ticker as mticker
+            print pvals
+            cmap = mcmap.Reds
+            cmap.set_bad('w',1.)
+            axes[1].pcolormesh(pvals.values.T,cmap=cmap,vmin=0, vmax=10, edgecolors='face', alpha=0.8)
+            #axes[1].yaxis.set_major_locator(mticker.MultipleLocator(base=1.0))
+            axes[1].set_yticks(np.arange(pvals.values.shape[1])+0.5, minor=False)
+            axes[1].set_yticklabels(pvalsDf.columns.values.tolist(), minor=False)
+
+
 
         legend_handles = []
         for gi, GRP in enumerate(UNIQ_GROUPS):
@@ -352,6 +448,8 @@ def main():
                 cur_axe = axes[0]
             else:
                 cur_axe = axes
+
+
             cur_axe.set_ylabel(SCALAR_NAME)
             # cur_axe.yaxis.label.set_color(cent_color)
             # cur_axe.tick_params(axis='y', colors=cent_color)
@@ -372,6 +470,14 @@ def main():
 
             # cur_axe.scatter(x,cent_stats['median'].tolist(), c=mcolor)   
 
+            if options.xrange:
+                plotrange = options.xrange.split(',')
+                cur_axe.set_xlim([int(plotrange[0]), int(plotrange[1])])
+
+            if options.yrange:
+                plotrange = options.yrange.split(',')
+                cur_axe.set_ylim([float(plotrange[0]), float(plotrange[1])])
+
         cur_axe.legend(legend_handles, UNIQ_GROUPS)
 
 
@@ -379,6 +485,7 @@ def main():
             Plot 3D Viz 
         """
 
+        scene.disable_render = True
         # scene.renderer.render_window.set(alpha_bit_planes=1,multi_samples=0)
         # scene.renderer.set(use_depth_peeling=True,maximum_number_of_peels=4,occlusion_ratio=0.1)
         ran_colors = np.random.random_integers(255, size=(len(cent),4))
@@ -386,7 +493,7 @@ def main():
         mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],labels, 
             opacity=0.1, 
             scale_mode='none',
-            scale_factor=0.2,
+            scale_factor=1,
             line_width=1,
             mode='point')
 
@@ -430,13 +537,22 @@ def main():
         tube_filter.vary_radius = 'vary_radius_by_scalar'
         tube_filter.radius_factor = 10
 
+        # plot first and last
+        def plot_pos_index(p):
+            pos = cent[p]
+            mlab.text3d(pos[0], pos[1], pos[2], str(p), scale=0.8)
 
+        for p in xrange(0,len(cent-1),10):
+            plot_pos_index(p)
+        plot_pos_index(len(cent)-1)
 
+        scene.disable_render = False
 
     DATADF.to_csv('_'.join([filebase,SCALAR_NAME,'rawdata.csv']), index=False)
 
     mg = plt.get_current_fig_manager()
     # mg.resize(*mg.window.maxsize())
+    plt.savefig('{}.pdf'.format('_'.join([filebase,SCALAR_NAME])), dpi=300)
     plt.show(block=False)
     mlab.show()
 

@@ -25,8 +25,12 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
     tdb_file = '_'.join([subj,'tracts.tdb'])
 
     print 'tract file: ',tdb_file
-    cmd = 'rm '+tdb_file
-    exec_cmd(cmd, dryrun=dry_run)
+
+    if os.path.isfile(tdb_file):
+        print '> remove old %s' % (tdb_file)
+        os.remove(tdb_file)    
+    # cmd = 'rm '+tdb_file
+    # exec_cmd(cmd, dryrun=dry_run)
     file_queue = []
 
     for method, file_list in streamnames.iteritems():
@@ -41,6 +45,9 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
 
             exec_cmd(cmd, dryrun=dry_run)
             cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_FA.nii.gz -n FA' % (trkwscalar, trkwscalar, subj)
+
+            exec_cmd(cmd, dryrun=dry_run)
+            cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_MD.nii.gz -n MD' % (trkwscalar, trkwscalar, subj)            
 
             exec_cmd(cmd, dryrun=dry_run)
             cmd = 'fascicle init -i %s -d %s' % (trkwscalar, tdb_file)
@@ -72,6 +79,11 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
     # export the transformed points into tract vtk
     for tfile in file_queue:
         out_name = os.path.join(out_path,'_'.join([subj,tfile]))
+        
+        if os.path.isfile(out_name):
+            print '> remove old %s' % (out_name)
+            os.remove(out_name)
+
         cmd = 'fascicle expvtk -d %s -t %s -m %s -o %s' % (tdb_file,tfile,mapping_name,out_name)
 
         exec_cmd(cmd, dryrun=dry_run)
@@ -99,13 +111,19 @@ def tracts_merge(self, **kwargs):
             merged_file_basename = '_'.join([tbasename,'merged'])
             merged_tdb = merged_file_basename+'.tdb'
             if os.path.isfile(merged_tdb):
+                print 'remove old %s' % (merged_tdb)
                 os.remove(merged_tdb)
             for idx,[subj,grp] in self.config.subject_df.iterrows():
                 subj = subj.strip()
                 trk_file = '_'.join([subj,tbasename+'.vtp'])
-                cmd = 'fascicle init -d %s.tdb -i %s --group %s' % (merged_file_basename, trk_file, grp)
+                cmd = 'fascicle init -d %s -i %s --group %s' % (merged_tdb, trk_file, grp)
                 exec_cmd(cmd)
-            cmd = 'fascicle expvtk -d %s.tdb --merged -o %s.vtp' % (merged_file_basename,merged_file_basename)
+
+            merged_model_file = merged_file_basename+'.vtp'
+            if os.path.isfile(merged_model_file):
+                print '> remove old %s' % (merged_model_file) 
+                os.remove(merged_model_file)
+            cmd = 'fascicle expvtk -d %s --merged -o %s' % (merged_tdb,merged_model_file)
             exec_cmd(cmd)
 
 

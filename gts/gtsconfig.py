@@ -109,6 +109,7 @@ class GtsConfig(object):
                         pass
 
                 self.subjects.append(self.Subject(name=name, group=str(group), dwi_path=mydwi, freesurfer_path=myfs, dwi_autodetect_folder=mydwiauto))
+        self.subjects_pool = self.subjects
 
     def subj_to_tuple(self, name):
         return self.Subject(name=name.rstrip(),group='0', dwi_path=self.default_dwi_path, freesurfer_path=self.default_freesurfer_path, dwi_autodetect_folder=self.dwi_autodetect_folder)

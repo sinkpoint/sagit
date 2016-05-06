@@ -108,7 +108,8 @@ class TractographyMethod(object):
         """
 
         data = None
-        aff = None        
+        aff = None 
+        print maps_list       
         for i in maps_list:         
             filename = path.join(self.path, i['filename'])
             print filename

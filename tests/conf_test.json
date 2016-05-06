@@ -4,11 +4,11 @@
     "T1_processed_path": "./group_template",
     "processed_path": "./processed",
     "template_roi_path": "./orig",
-    "tractography_path": "./tractography",
+    "tractography_path": "./data/tractography",
     "ind_roi_path": "./rois",
 
-    "dwi_base_path": "/media/AMMONIS/scans/normals/",
-    "subject_freesurfer_path" : "/media/AMMONIS/fsSubjects/subjects_archive",
+    "dwi_base_path": "./normals/",
+    "subject_freesurfer_path" : "./fs_archive",
     
     "group_template_file" : "con43_average.nii.gz",
     
@@ -21,6 +21,29 @@
     "subjects": ["C13"],
     "manual_subjects": false,
 
+
+    "template_def": {
+        "reference": "con43_average.nii.gz",
+        "roi_img": "roi.nii.gz"
+    },
+
+    "rois_def" : { 
+        "testroi": {
+            "type": "from_template",
+            "image": "roi_img",
+            "label": "2"
+        },      
+
+        "s1_L": {
+            "type": "freesurfer",
+            "image": "intersect( dilate(@1022, 2), @2 )"          
+        },
+
+        "s1_L_face" : {
+            "type": "composite",
+            "image": "intersect( $s1_L, $testroi )"
+        }
+    },
 
     "tract_method": [
 

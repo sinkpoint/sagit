@@ -31,13 +31,10 @@ from PIL import ImageFont
 import gc
 import gts.meas.imagescore as imgs
 import time
-from gts.scripts import vol2iso_viz
 import vtk
 
 from gts.maps import tract_density as tdm
 
-from dipy.viz import fvtk
-from dipy.viz.colormap import line_colors
 from tractography import TractographyMethod
 from ordered_set import OrderedSet
 
@@ -91,6 +88,15 @@ class GroupTractStats:
 
     def _d(self, subj, basename, ref=""):
         return getGtsFilename(self.config, subj, basename, ref, ext=False)
+
+    def filterSubjects(self, names_list):
+        filtered = []
+        for s in self.config.subjects_pool:
+            if s.name in names_list:
+                print '>','filtered for',s.name
+                filtered.append(s)
+        self.config.subjects = filtered
+        print self.config.subjects
 
     def runPerSubject(self, func, **kwargs):
         for subj in self.config.subjects:
@@ -880,6 +886,8 @@ class GroupTractStats:
 
     def tracts_to_images(self, stream_map):
 
+        from dipy.viz import fvtk
+        from dipy.viz.colormap import line_colors
 
         print '===================== PERFORM tracts_to_images ======================='
 
@@ -1112,6 +1120,8 @@ class GroupTractStats:
 
 
     def conjunction_to_images(self, file_list, slice_indices=(0,0,0), name='', bg_file='' , auto_slice=True,dry_run=False):
+
+        from gts.scripts import vol2iso_viz
 
         def get_slicing(focus_settings, skey):
                 if not isinstance(focus_settings, dict):

@@ -12,9 +12,13 @@ from pyparsing import ParseException
 from pyparsing import Suppress
 from pyparsing import Word
 from pyparsing import alphas
+from pyparsing import alphanums
 from pyparsing import delimitedList
 from pyparsing import nums
 from pyparsing import oneOf
+import pyparsing as pp
+
+
 
 class GtsRoi(object):
     """
@@ -26,6 +30,8 @@ class GtsRoi(object):
                 "image" : "vestib_roi",
                 "label": "raw label definitions; see label expression syntax",
             },      
+    pyparsing documentation:
+    http://infohost.nmt.edu/~shipman/soft/pyparsing/web/index.html
     """
     aseg_file = 'aseg_dwi.nii.gz'
 
@@ -56,6 +62,9 @@ class GtsRoi(object):
         elif self.type=='freesurfer':
             return self.aseg_file.split('.')[0]
 
+        elif self.type=='composite':
+            return self.name
+
     def get_filename(self, subj, ref='dwi', autogen=True):
         if self.type == 'direct':            
             return self.filename
@@ -66,12 +75,13 @@ class GtsRoi(object):
             projected_filename = gts.getDwiRoiName(gc,subj,template_name,ref=ref)+'.nii.gz'
             return projected_filename        
 
-        elif self.type=='freesurfer':
+        elif self.type=='freesurfer' or self.type=='composite':
             gen_filename = self.name+'_gen.nii.gz'
             if autogen:
                 gen_filename = self.generate(subj, filename=gen_filename)
 
             return gen_filename
+
 
     def goto_working_path(self, subj):
         self.origin_path = os.getcwd()
@@ -101,6 +111,8 @@ class GtsRoi(object):
             return (get_data(img),None)
 
         def img_intersect(img1, img2):
+            print img1,img2
+            print os.getcwd()
             data1 = get_data(img1)
             data2 = get_data(img2)
             data = np.multiply(data1, data2)
@@ -152,6 +164,7 @@ class GtsRoi(object):
             """
             print parsed
             if isinstance(parsed, list):
+                # recursively descend
                 func_name = parsed[0]
                 args = []
                 for i in range(1,len(parsed)):
@@ -161,6 +174,7 @@ class GtsRoi(object):
                 print func_name, args
                 return func(*args)                                
 
+            # leaf processing
             try:                
                 parsed = int(parsed)
                 # return parameter as integer                 
@@ -168,10 +182,20 @@ class GtsRoi(object):
             except (TypeError, ValueError), e:
                 try:
                     parsed = str(parsed)
+
                     if '@' in parsed:
+                        # freesurfer reference, return freesurfer seg file
                         parsed = parsed.split('@')[1]
-                    # return parameter as (file, label) tuple
-                    return (subj_name+'_'+self.aseg_file, parsed)
+                        # return parameter as (file, label) tuple
+                        return (subj_name+'_'+self.aseg_file, parsed)
+                    elif '$' in parsed:
+                        parsed = parsed.split('$')[1]
+                        # return the generated file name
+                        refroi = self.global_config.rois_def[parsed]
+                        mlabel = 1
+                        if refroi.type == 'from_template':
+                            mlabel = refroi.label
+                        return (refroi.get_filename(subj_name),mlabel)
 
                 except Exception, e:
                     return None
@@ -179,19 +203,22 @@ class GtsRoi(object):
 
 
         self.goto_working_path(subj_name)
-         
+
+        from pyparsing import WordStart
+
+        iw = alphas+'$_'
+
         exp = Forward()
          
         funcname = Word(alphas) 
-        labels = Word('@'+nums)
+        labels = pp.Combine('@'+Word(nums))
+        imglabel = pp.Combine('$'+Word(pp.alphanums+'_'))
         number = Word(nums).setParseAction(lambda s, l, t: int(t[0]))
 
         lparen = Literal('(').suppress()
         rparen = Literal(')').suppress()
 
-        print lparen,rparen
-
-        exp << Group(funcname + lparen + delimitedList(number | labels | exp ) + rparen)
+        exp << Group(funcname + lparen + delimitedList( labels |  imglabel | number | exp ) + rparen)
 
         print '>',self.image
         etree = exp.parseString(self.image).asList()[0]

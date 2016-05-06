@@ -12,12 +12,12 @@ class Mrtrix(TractographyMethod):
         # calculate CSD estimation
         cmd = 'rm dwi.mif'
         exec_cmd(cmd)
-        cmd = 'mrconvert Motion_Corrected_DWI_nobet.nii.gz dwi.mif'
+        cmd = 'mrconvert DWI_CORRECTED.nii.gz dwi.mif'
         exec_cmd(cmd)
         bval_file = 'DWI.bval'
         if os.path.isfile(self.subject+'.bval'):
             bval_file = self.subject+'.bval'
-        cmd = 'mrtrix_grad.py -v newdirs.dat -a %s -o dwi.grad' % (bval_file)
+        cmd = 'mrtrix_grad.py -v DWI_CORRECTED.bvec -a %s -o dwi.grad' % (bval_file)
         exec_cmd(cmd)
         cmd = 'mrtrix_compcsd.sh -g dwi.grad dwi.mif'
         exec_cmd(cmd)
