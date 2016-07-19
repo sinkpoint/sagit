@@ -8,6 +8,10 @@ from math import log
 from scipy.optimize import curve_fit
 
 def main(): 
+    if len(sys.argv) < 2: 
+        print 'Usage: {0} <input.nii.gz> <figure.(png)|(svg)|(pdf)>'.format(sys.argv[0])
+        return
+
     filename = sys.argv[1]
     if len(sys.argv) > 2:
         image = sys.argv[2]
@@ -62,17 +66,24 @@ def get_score(data, figure=True, title=None):
 
     if figure:
         from matplotlib import pyplot as plt
+        import seaborn as sns
+        sns.set_style('white')
+        sns.set_context("notebook", font_scale=1.8)
+
+        mcolor = sns.color_palette()[0]
         pcoef = np.polyfit(thres_bin, thres_vals, 3)
         curve = np.poly1d(pcoef)
-        plt.figure(figsize=(6,5))        
+        fig = plt.figure(figsize=(6,5))        
         ax = plt.subplot()
         if not title:
-            title = 'normalized overlap score'
+            title = 'NOS Score'
         ax.set_title(title+' (score=%1.3f)' % score )
-        plt.xlabel('percent overlap threshold')
+        plt.xlabel('Overlap Threshold')
         plt.ylabel('log(count) ratio')
-        plt.plot(thres_bin_labels, thres_vals, 'ks-')
-        plt.axhline(0, color='black')
+        plt.plot(thres_bin_labels, thres_vals, 'ks-', color=mcolor)
+        plt.axhline(0, color=mcolor)
+        plt.fill_between(thres_bin_labels, 0, thres_vals, facecolor=mcolor, alpha=0.5)
+        fig.tight_layout()
         #curve_fit(f, xdata, ydata)
         if type(figure) is str or type(figure) is unicode:
             plt.savefig(figure)

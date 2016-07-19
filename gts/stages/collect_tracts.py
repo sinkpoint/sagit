@@ -50,7 +50,7 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
             cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_MD.nii.gz -n MD' % (trkwscalar, trkwscalar, subj)            
 
             exec_cmd(cmd, dryrun=dry_run)
-            cmd = 'fascicle init -i %s -d %s' % (trkwscalar, tdb_file)
+            cmd = 'fascicle add -i %s -d %s' % (trkwscalar, tdb_file)
 
             exec_cmd(cmd, dryrun=dry_run)
 
@@ -110,9 +110,9 @@ def tracts_merge(self, **kwargs):
             tbasename = tfile.split('.')[0]
             merged_file_basename = '_'.join([tbasename,'merged'])
             merged_tdb = merged_file_basename+'.tdb'
-            if os.path.isfile(merged_tdb):
-                print 'remove old %s' % (merged_tdb)
-                os.remove(merged_tdb)
+            # if os.path.isfile(merged_tdb):
+            #     print 'remove old %s' % (merged_tdb)
+            #     os.remove(merged_tdb)
             for idx,[subj,grp] in self.config.subject_df.iterrows():
                 subj = subj.strip()
                 trk_file = '_'.join([subj,tbasename+'.vtp'])
@@ -120,9 +120,9 @@ def tracts_merge(self, **kwargs):
                 exec_cmd(cmd)
 
             merged_model_file = merged_file_basename+'.vtp'
-            if os.path.isfile(merged_model_file):
-                print '> remove old %s' % (merged_model_file) 
-                os.remove(merged_model_file)
+            # if os.path.isfile(merged_model_file):
+            #     print '> remove old %s' % (merged_model_file) 
+            #     os.remove(merged_model_file)
             cmd = 'fascicle expvtk -d %s --merged -o %s' % (merged_tdb,merged_model_file)
             exec_cmd(cmd)
 
