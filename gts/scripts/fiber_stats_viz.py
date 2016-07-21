@@ -73,7 +73,6 @@ def getNiftiAsScalarField(filename):
     return src, data
 
 def position_stats(df):
-    print '### position stats'
     from statsmodels.stats.weightstats import ztest
     from functools32 import partial, wraps
     POS = df.position.unique()
@@ -87,13 +86,13 @@ def position_stats(df):
     ttest_ind_nev = wraps(partial(stats.ttest_ind, equal_var=False))(stats.ttest_ind)
     mwu_test = wraps(partial(stats.mannwhitneyu, use_continuity=False))(stats.mannwhitneyu)
 
-    # print df
+    print df
 
-    stats_test = mwu_test
+    stats_test = ttest_ind_nev
     for pos in POS:
         print pos
         data = df[df.position==pos]
-        # data = data.groupby(['sid']).mean()
+        data = data.groupby(['sid']).mean()
         print data
 
 
@@ -131,7 +130,6 @@ def position_stats(df):
 def stats_per_group(x):
     res = {'median':[],'qtile':[],'ci':[]}
     medians = np.median(x)
-    res['mean'] = np.average(x)
     res['median'] = medians
     lower_quartile, upper_quartile = np.percentile(x, [25,75])
     res['qtile'] = (upper_quartile, lower_quartile)
