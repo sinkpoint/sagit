@@ -1,14 +1,18 @@
+SQLAlchemy==1.0.10
+argparse==1.2.1
+commentjson==0.6
 decorator==4.0.4
-jsoncomment==0.3.0
+functools32==3.2.3-2
+-e git+https://github.com/sinkpoint/gts.git@6adee61b85fbe9508637aaa708a6b708ca46424f#egg=gts-master
+hjson==1.5.8
 networkx==1.10
-nibabel==2.0.1
+nibabel==2.0.2
 nipype==0.11.0
-nose==1.3.7
-numpy==1.10.1
-pyparsing==2.0.3
-python-dateutil==2.4.2
+numpy==1.10.4
+ordered-set==2.0.0
+patsy==0.4.1
+-e git+https://github.com/sinkpoint/pynrrd.git@843104dbd551d9e8ca47afca0cc5d78366fe049e#egg=pynrrd-master
 scipy==0.16.0
 six==1.10.0
-traits==4.5.0
-wheel==0.24.0
-SQLAlchemy==1.0.10
+statsmodels==0.8.0
+wsgiref==0.1.2

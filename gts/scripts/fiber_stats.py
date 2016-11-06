@@ -32,7 +32,7 @@ import statsmodels.formula.api as smf
 from statsmodels.stats.multicomp import MultiComparison
 from statsmodels.sandbox.stats.multicomp import multipletests
 from scipy import stats
-
+from gts.gtsconfig import GtsConfig
 
 def getNiftiAsScalarField(filename):
     import nibabel as nib
@@ -72,7 +72,114 @@ def getNiftiAsScalarField(filename):
     src.update_image_data = True    
     return src, data
 
-def position_stats(df):
+def _ttest_finish(df,t):
+    from scipy.stats import distributions
+    """Common code between all 3 t-test functions."""
+    prob = distributions.t.sf(np.abs(t), df) * 2  # use np.abs to get upper tail
+    if t.ndim == 0:
+        t = t[()]
+
+    return t, prob
+
+def _chk2_asarray(a, b, axis):
+    if axis is None:
+        a = np.ravel(a)
+        b = np.ravel(b)
+        outaxis = 0
+    else:
+        a = np.asarray(a)
+        b = np.asarray(b)
+        outaxis = axis
+    return a, b, outaxis
+    
+def ttest_ind_log(a, b, axis=0, equal_var=True):
+
+    """
+    Calculates the T-test for the means of TWO INDEPENDENT samples of scores.
+    This is a two-sided test for the null hypothesis that 2 independent samples
+    have identical average (expected) values. This test assumes that the
+    populations have identical variances.
+    CHANGE: The number of samples N is calculated as log(N), to be used for very large number of samples
+
+    Parameters
+    ----------
+    a, b : array_like
+        The arrays must have the same shape, except in the dimension
+        corresponding to `axis` (the first, by default).
+    axis : int, optional
+        Axis can equal None (ravel array first), or an integer (the axis
+        over which to operate on a and b).
+    equal_var : bool, optional
+        If True (default), perform a standard independent 2 sample test
+        that assumes equal population variances [1]_.
+        If False, perform Welch's t-test, which does not assume equal
+        population variance [2]_.
+        .. versionadded:: 0.11.0
+    Returns
+    -------
+    t : float or array
+        The calculated t-statistic.
+    prob : float or array
+        The two-tailed p-value.
+    
+    """
+    a, b, axis = _chk2_asarray(a, b, axis)
+    if a.size == 0 or b.size == 0:
+        return (np.nan, np.nan)
+
+    v1 = np.var(a, axis, ddof=1)
+    v2 = np.var(b, axis, ddof=1)
+    n1 = math.log(a.shape[axis])
+    n2 = math.log(b.shape[axis])
+
+    if (equal_var):
+        df = n1 + n2 - 2
+        svar = ((n1 - 1) * v1 + (n2 - 1) * v2) / float(df)
+        denom = np.sqrt(svar * (1.0 / n1 + 1.0 / n2))
+    else:
+        vn1 = v1 / n1
+        vn2 = v2 / n2
+        df = ((vn1 + vn2)**2) / ((vn1**2) / (n1 - 1) + (vn2**2) / (n2 - 1))
+
+        # If df is undefined, variances are zero (assumes n1 > 0 & n2 > 0).
+        # Hence it doesn't matter what df is as long as it's not NaN.
+        df = np.where(np.isnan(df), 1, df)
+        denom = np.sqrt(vn1 + vn2)
+
+    d = np.mean(a, axis) - np.mean(b, axis)
+    t = np.divide(d, denom)
+    t, prob = _ttest_finish(df, t)
+
+    return t, prob
+
+def resample_data(df, num_sample_per_pos = 100):
+    POS = df.position.unique()
+    POS.sort()
+
+    GROUPS = df.group.unique()
+    GROUPS.sort()
+
+    DF = None
+    for pos in POS:
+        pos_data = df[df.position==pos]
+
+        for group in GROUPS:
+            group_data = pos_data[pos_data.group==group]
+
+            samples = np.random.choice(group_data.value, replace=True, size=num_sample_per_pos)
+
+            table = {"group":[group]*num_sample_per_pos, "position":[pos]*num_sample_per_pos, "value":samples}
+
+            table = pd.DataFrame(data=table)
+            if DF is None:
+                DF = table
+            else:
+                DF = pd.concat([DF, table])
+
+    return DF
+
+def position_stats(df, name_mapping=None):
+
     print '### position stats'
     from statsmodels.stats.weightstats import ztest
     from functools32 import partial, wraps
@@ -84,17 +191,23 @@ def position_stats(df):
     header = None
     DF = None
 
+    ttest_log_wrap = wraps(partial(ttest_ind_log, equal_var=False))(ttest_ind_log)
     ttest_ind_nev = wraps(partial(stats.ttest_ind, equal_var=False))(stats.ttest_ind)
     mwu_test = wraps(partial(stats.mannwhitneyu, use_continuity=False))(stats.mannwhitneyu)
 
+    bootstrap_sample_num = 1000
     # print df
 
-    stats_test = mwu_test
+    stats_test = ttest_ind_nev
+    GROUPS = df.group.unique()
+    GROUPS = [0,3]
+
     for pos in POS:
         print pos
         data = df[df.position==pos]
-        # data = data.groupby(['sid']).mean()
-        print data
+        data = data.groupby(['sid']).mean()
+        data = df[(df.group == 0) | (df.group == 3)]
+        # print data
 
 
         #cross = smf.ols(model, data=data).fit()
@@ -102,8 +215,16 @@ def position_stats(df):
         mcp = MultiComparison(data.value, data.group)
 
         rtp = mcp.allpairtest(stats_test, method='fdr_bh')
-        #print rtp[0]
-        mheader = [ "{}-{}".format(i[0],i[1]) for i in rtp[2] ]
+        mheader = []
+        for itest in rtp[2]:
+            name1 = itest[0]
+            name2 = itest[1]
+            if name_mapping is not None:
+                name1 = name_mapping[str(name1)]
+                name2 = name_mapping[str(name2)]
+
+            mheader.append("{} - {}".format(name1, name2))
+
         if not header or len(mheader) > len(header):
             header = mheader
         pvals = rtp[1][0][:,1]
@@ -116,14 +237,14 @@ def position_stats(df):
         else:
             allpvals = pd.concat([allpvals,ndf])
             
-    corr_pvals = allpvals    
-    # flatten = allpvals.values.ravel()
-    # flatten = flatten * 2
-    # mcpres = multipletests(flatten, alpha=0.05, method='fdr_bh')
-    # print mcpres
-    # corr_pvals = np.array(mcpres[1])
-    # print corr_pvals
-    # corr_pvals = np.reshape(corr_pvals, (len(POS),-1))
+    # corr_pvals = allpvals    
+    flatten = allpvals.values.ravel()
+    flatten = flatten * 2
+    mcpres = multipletests(flatten, alpha=0.05, method='fdr_bh')
+    print mcpres
+    corr_pvals = np.array(mcpres[1])
+    print corr_pvals
+    corr_pvals = np.reshape(corr_pvals, (len(POS),-1))
 
     print corr_pvals
     return pd.DataFrame(data=corr_pvals, columns=header)
@@ -142,7 +263,18 @@ def stats_per_group(x):
     res['whisk'] = (lower_whisker, upper_whisker)
     res['err'] = (np.abs(lower_whisker-medians), np.abs(upper_whisker-medians))
     return res
-        
+
+def smooth(X, Y):
+    # ####### don't smooth    
+    # return (X, Y.tolist())
+    """
+        Smoothing function 
+    """
+    from scipy.interpolate import spline
+    X_new = np.linspace(X.min(),X.max(),300)
+    smoothed = spline(X,Y.tolist(),X_new)
+    return (X_new, smoothed)
+
 def main():
     parser = OptionParser(usage="Usage: %prog [options] <tract.vtp>")
     parser.add_option("-d", "--dist", dest="dist", default=20, type='float', help="Quickbundle distance threshold")
@@ -156,12 +288,18 @@ def main():
     parser.add_option('--noviz',dest='is_viz', action='store_false', default=True)
     parser.add_option('--xrange', dest='xrange')
     parser.add_option('--yrange', dest='yrange')
+    parser.add_option('--config', dest='config')
     (options, args) = parser.parse_args()
 
     if len(args) == 0:
         parser.print_help()
         sys.exit(2)
-        
+
+    name_mapping = None
+    if options.config:
+        config = GtsConfig(options.config, configure=False)
+        name_mapping = config.group_labels
+
     QB_DIST = options.dist
     QB_NPOINTS = options.num
     SCALAR_NAME = options.scalar
@@ -310,20 +448,21 @@ def main():
     # prepare mayavi 3d viz
 
 
-    bg_val = 0.
-    fig = mlab.figure(bgcolor=(bg_val,bg_val,bg_val))
-    scene = mlab.gcf().scene
-    fig.scene.render_window.aa_frames = 4
-    mlab.draw()
+    if options.is_viz:
+        bg_val = 0.
+        fig = mlab.figure(bgcolor=(bg_val,bg_val,bg_val))
+        scene = mlab.gcf().scene
+        fig.scene.render_window.aa_frames = 4
+        mlab.draw()
 
-    if options.bg_file:
-        mrsrc, bgdata = getNiftiAsScalarField(options.bg_file)
-        orie = 'z_axes'
+        if options.bg_file:
+            mrsrc, bgdata = getNiftiAsScalarField(options.bg_file)
+            orie = 'z_axes'
 
-        opacity=0.5
-        slice_index = 0
+            opacity=0.5
+            slice_index = 0
 
-        mlab.pipeline.image_plane_widget(mrsrc, opacity=opacity, plane_orientation=orie, slice_index=int(slice_index), colormap='black-white', line_width=0, reset_zoom=False)
+            mlab.pipeline.image_plane_widget(mrsrc, opacity=opacity, plane_orientation=orie, slice_index=int(slice_index), colormap='black-white', line_width=0, reset_zoom=False)
 
     # prepare the plt plot
     len_cent = len(centroids)
@@ -371,6 +510,7 @@ def main():
         cid = np.ones(len(labels))
         d = {'value':cent_scalars, 'position':labels, 'group':cent_groups, 'pid':cent_pids, 'sid':cent_sids}
 
+
         df = pd.DataFrame(data=d)
         if DATADF is None:
             DATADF = df
@@ -382,11 +522,18 @@ def main():
         UNIQ_GROUPS = df.group.unique()
         UNIQ_GROUPS.sort()
 
+        UNIQ_GROUPS = [0,3]
+
         grppal = sns.color_palette("Set2", len(UNIQ_GROUPS))
 
         print '# UNIQ GROUPS',UNIQ_GROUPS
 
 
+        # print df
+        # df = df[df['sid'] != 15]
+        # df = df[df['sid'] != 16]
+        # df = df[df['sid'] != 17]
+        # df = df[df['sid'] != 18]
         """ 
             plot each group by their position 
         """
@@ -406,7 +553,9 @@ def main():
         """   
 
         if len(UNIQ_GROUPS) > 1:
-            pvalsDf = position_stats(df)
+            # df = resample_data(df, num_sample_per_pos=120)
+            print df
+            pvalsDf = position_stats(df, name_mapping=name_mapping)
             logpvals = np.log(pvalsDf)*-1
             #print logpvals
 
@@ -437,7 +586,7 @@ def main():
 
             cent_stats = cent_stats.unstack()
             cent_median_scalar = cent_stats['median'].tolist()
-            x = [i for i in posGrp.groups]
+            x = np.array([i for i in posGrp.groups])
             # print x
 
             # print cent_stats['median'].tolist()
@@ -460,16 +609,22 @@ def main():
 
             #cur_axe.fill_between(x, [s[0] for s in cent_ci], [t[1] for t in cent_ci], alpha=0.3, color=mcolor)
 
-            cur_axe.fill_between(x, [s[0] for s in cent_stats['whisk'].tolist()], 
-                [t[1] for t in cent_stats['whisk'].tolist()], alpha=0.1, color=mcolor)
+            # cur_axe.fill_between(x, [s[0] for s in cent_stats['whisk'].tolist()], 
+            #     [t[1] for t in cent_stats['whisk'].tolist()], alpha=0.1, color=mcolor)
 
-            cur_axe.fill_between(x, [s[0] for s in cent_stats['qtile'].tolist()], 
-                [t[1] for t in cent_stats['qtile'].tolist()], alpha=0.4, color=mcolor)
+            qtile_top = np.array([s[0] for s in cent_stats['qtile'].tolist()])
+            qtile_bottom = np.array([t[1] for t in cent_stats['qtile'].tolist()])
 
-            cur_axe.errorbar(x, cent_stats['median'].tolist(), yerr=[[s[0] for s in cent_stats['err'].tolist()], 
-                [t[1] for t in cent_stats['err'].tolist()]], color=mcolor, alpha=0.1)    
+            x_new, qtop_sm = smooth(x, qtile_top)
+            x_new, qbottom_sm = smooth(x, qtile_bottom)
+            cur_axe.fill_between(x_new, qtop_sm, qbottom_sm 
+                , alpha=0.25, color=mcolor)
 
-            hnd, = cur_axe.plot(x,cent_stats['median'].tolist(), c=mcolor)   
+            # cur_axe.errorbar(x, cent_stats['median'].tolist(), yerr=[[s[0] for s in cent_stats['err'].tolist()], 
+            #     [t[1] for t in cent_stats['err'].tolist()]], color=mcolor, alpha=0.1)    
+
+            x_new, median_sm = smooth(x, cent_stats['median'])
+            hnd, = cur_axe.plot(x_new, median_sm, c=mcolor)   
             legend_handles.append(hnd) 
 
             # cur_axe.scatter(x,cent_stats['median'].tolist(), c=mcolor)   
@@ -482,83 +637,86 @@ def main():
                 plotrange = options.yrange.split(',')
                 cur_axe.set_ylim([float(plotrange[0]), float(plotrange[1])])
 
-        cur_axe.legend(legend_handles, UNIQ_GROUPS)
+        legend_labels = UNIQ_GROUPS
+        if name_mapping is not None:
+            legend_labels = [ name_mapping[str(i)] for i in UNIQ_GROUPS]
+        cur_axe.legend(legend_handles, legend_labels)
 
 
         """
             Plot 3D Viz 
         """
 
-        scene.disable_render = True
-        # scene.renderer.render_window.set(alpha_bit_planes=1,multi_samples=0)
-        # scene.renderer.set(use_depth_peeling=True,maximum_number_of_peels=4,occlusion_ratio=0.1)
-        ran_colors = np.random.random_integers(255, size=(len(cent),4))
-        ran_colors[:,-1] = 255
-        mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],labels, 
-            opacity=0.1, 
-            scale_mode='none',
-            scale_factor=1,
-            line_width=1,
-            mode='point')
+        if options.is_viz:
+            scene.disable_render = True
+            # scene.renderer.render_window.set(alpha_bit_planes=1,multi_samples=0)
+            # scene.renderer.set(use_depth_peeling=True,maximum_number_of_peels=4,occlusion_ratio=0.1)
+            ran_colors = np.random.random_integers(255, size=(len(cent),4))
+            ran_colors[:,-1] = 255
+            mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],labels, 
+                opacity=0.1, 
+                scale_mode='none',
+                scale_factor=1,
+                line_width=1,
+                mode='point')
 
-        # print mypts.module_manager.scalar_lut_manager.lut.table.to_array()
-        mypts.module_manager.scalar_lut_manager.lut.table = ran_colors
-        mypts.module_manager.scalar_lut_manager.lut.number_of_colors = len(ran_colors)
+            # print mypts.module_manager.scalar_lut_manager.lut.table.to_array()
+            mypts.module_manager.scalar_lut_manager.lut.table = ran_colors
+            mypts.module_manager.scalar_lut_manager.lut.number_of_colors = len(ran_colors)
 
 
-        delta = len(cent) - len(cent_median_scalar)
-        if delta > 0:
-            cent_median_scalar = np.pad(cent_median_scalar, (0,delta), mode='constant', constant_values=0)
+            delta = len(cent) - len(cent_median_scalar)
+            if delta > 0:
+                cent_median_scalar = np.pad(cent_median_scalar, (0,delta), mode='constant', constant_values=0)
 
-        # calculate the displacement vector for all pairs
-        uvw =  cent - np.roll(cent,1, axis=0)
-        uvw[0] *= 0 
-        uvw = np.roll(uvw,-1,axis=0)
-        arrow_plot = mlab.quiver3d(
-            cent[:,0], cent[:,1], cent[:,2], 
-            uvw[:,0], uvw[:,1], uvw[:,2], 
-            scalars=cent_median_scalar,
-            scale_factor=1,
-            #color=mcolor,
-            mode='arrow')
+            # calculate the displacement vector for all pairs
+            uvw =  cent - np.roll(cent,1, axis=0)
+            uvw[0] *= 0 
+            uvw = np.roll(uvw,-1,axis=0)
+            arrow_plot = mlab.quiver3d(
+                cent[:,0], cent[:,1], cent[:,2], 
+                uvw[:,0], uvw[:,1], uvw[:,2], 
+                scalars=cent_median_scalar,
+                scale_factor=1,
+                #color=mcolor,
+                mode='arrow')
 
-        gsource = arrow_plot.glyph.glyph_source.glyph_source
-        
-        # for name, thing in inspect.getmembers(gsource):
-        #      print name
-        
-        arrow_plot.glyph.color_mode = 'color_by_scalar'
-        #arrow_plot.glyph.scale_mode = 'scale_by_scalar'
-        #arrow_plot.glyph.glyph.clamping = True
-        #arrow_plot.glyph.glyph.scale_factor = 5
-        #print arrow_plot.glyph.glyph.glyph_source
-        gsource.tip_length=0.4
-        gsource.shaft_radius=0.2
-        gsource.tip_radius=0.3
+            gsource = arrow_plot.glyph.glyph_source.glyph_source
+            
+            # for name, thing in inspect.getmembers(gsource):
+            #      print name
+            
+            arrow_plot.glyph.color_mode = 'color_by_scalar'
+            #arrow_plot.glyph.scale_mode = 'scale_by_scalar'
+            #arrow_plot.glyph.glyph.clamping = True
+            #arrow_plot.glyph.glyph.scale_factor = 5
+            #print arrow_plot.glyph.glyph.glyph_source
+            gsource.tip_length=0.4
+            gsource.shaft_radius=0.2
+            gsource.tip_radius=0.3
 
-        tube_plot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, color=cent_color, tube_radius=0.2, opacity=0.25)
-        tube_filter = tube_plot.parent.parent.filter
-        tube_filter.vary_radius = 'vary_radius_by_scalar'
-        tube_filter.radius_factor = 10
+            tube_plot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, color=cent_color, tube_radius=0.2, opacity=0.25)
+            tube_filter = tube_plot.parent.parent.filter
+            tube_filter.vary_radius = 'vary_radius_by_scalar'
+            tube_filter.radius_factor = 10
 
-        # plot first and last
-        def plot_pos_index(p):
-            pos = cent[p]
-            mlab.text3d(pos[0], pos[1], pos[2], str(p), scale=0.8)
+            # plot first and last
+            def plot_pos_index(p):
+                pos = cent[p]
+                mlab.text3d(pos[0], pos[1], pos[2], str(p), scale=0.8)
 
-        for p in xrange(0,len(cent-1),10):
-            plot_pos_index(p)
-        plot_pos_index(len(cent)-1)
+            for p in xrange(0,len(cent-1),10):
+                plot_pos_index(p)
+            plot_pos_index(len(cent)-1)
 
-        scene.disable_render = False
+            scene.disable_render = False
 
     DATADF.to_csv('_'.join([filebase,SCALAR_NAME,'rawdata.csv']), index=False)
-
-    mg = plt.get_current_fig_manager()
-    # mg.resize(*mg.window.maxsize())
     plt.savefig('{}.pdf'.format('_'.join([filebase,SCALAR_NAME])), dpi=300)
-    plt.show(block=False)
-    mlab.show()
+
+    if options.is_viz:
+        plt.show(block=False)
+        mlab.show()
 
 if __name__ == '__main__':
     main()

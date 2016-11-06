@@ -1,7 +1,6 @@
 import gtsroi
-import json
+import hjson
 
-import commentjson
 from os import getcwd
 from os import path
 from os.path import abspath
@@ -16,7 +15,7 @@ class GtsConfig(object):
 
     Subject = namedtuple('Subject', 'name group dwi_path freesurfer_path dwi_autodetect_folder')
 
-    def __init__(self,conf_file=None):
+    def __init__(self,conf_file=None, configure=True):
         self._SIMULATE = False
 
         if not conf_file:
@@ -44,7 +43,8 @@ class GtsConfig(object):
         else:
             self.conf_file = conf_file
             self.loadFromJson(conf_file)
-            self.configure()
+            if configure:
+                self.configure()
 
 
     def __getattr__(self,var):
@@ -118,8 +118,8 @@ class GtsConfig(object):
         if not conf == "":
             print '#> ',conf
             fp = open(conf, 'r')
-            #parser = JsonComment(json)
-            config_map = commentjson.load(fp)
+
+            config_map = hjson.load(fp)
             for k,v in config_map.iteritems():
                 if k=='import':
                     self.loadFromJson(v)

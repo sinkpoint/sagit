@@ -150,7 +150,7 @@ def main():
         curve[0].GetParametricRange(param_range)
 
         t = param_range[0]
-        step = (param_range[1]-param_range[0])/(QB_NPOINTS-1.0)
+        step = (param_range[1]-param_range[0])/(QB_NPOINTS)
 
         while t < param_range[1]:
             cp = [c.Evaluate(t) for c in curve]

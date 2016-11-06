@@ -25,10 +25,11 @@ config = {
             'sagit_dwi_to_apm=gts.scripts.sh_to_apm:main',
             'sagit_fiber_to_table=gts.scripts.fiber_to_table:main',
             'sagit_fiber_stats=gts.scripts.fiber_stats:main',
-            'sagit_fiber_stats_plott=gts.scripts.fiber_stats_plot:main',
+            'sagit_fiber_stats_plot=gts.scripts.fiber_stats_plot:main',
+            'sagit_fiber_stats_compare=gts.scripts.fiber_stats_compare:main',
             'sagit_nos_score=gts.meas.imagescore:main'
         ],
-    },    
+    },
 }
 
 setup(**config)
