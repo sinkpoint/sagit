@@ -51,7 +51,8 @@ class GtsConfig(object):
         try:
             return self._CONFIG[var]
         except KeyError:
-            return ''
+            return None
+            
     def __setattr__(self,var,val):
         if var == '_CONFIG':
             super(GtsConfig, self).__setattr__(var, val)

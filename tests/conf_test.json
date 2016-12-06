@@ -68,5 +68,10 @@
             ,"label" : "xst"
             ,"params" : " -stop aniso:ca2,0.15 frac:0.1 radius:0.8 minlen:5 -step 0.5"
         }       
+    ],
+
+    "collect_maps": [
+        "MDWI",
+        "roi"
     ]
 }

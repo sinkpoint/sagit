@@ -1,5 +1,6 @@
 from gts import exec_cmd
 import os
+from glob import glob
 
 def per_subj_tract_to_template_space(self, subject, **kwargs):
     dry_run = False
@@ -33,21 +34,48 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
     # exec_cmd(cmd, dryrun=dry_run)
     file_queue = []
 
+    maps = []
+    collect_settings = self.config.collect_maps
+    if not collect_settings or 'default_set' in collect_settings:
+        maps = ['FA','RD','AD','MD']
+
+    for m in collect_settings:
+        if m == 'default_set':
+            continue
+        maps.append(m)
+
+    maps = list(set(maps))
+
+
+
     for method, file_list in streamnames.iteritems():
         print '== Method %s' % method
         for tfile in file_list:
             print '>',tfile
             trkwscalar = tfile.split('.')[0]+'.vtp'
-            cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_AD.nii.gz -n AD' % (tfile, trkwscalar, subj)
+            input_tract = tfile
 
-            exec_cmd(cmd, dryrun=dry_run)
-            cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_RD.nii.gz -n RD' % (trkwscalar, trkwscalar, subj)
+            for mtype in maps:
+                mapname = '_'.join([subj, mtype])
+                mapfile = glob('*{}.nii.gz'.format(mapname))
+                if len(mapfile) == 0:
+                    mapfile = glob('*{}_dwi.nii.gz'.format(mapname))
+                    if len(mapfile) == 0:
+                        print 'WARNING',subj,mapname,' not found during collecting maps.'
+                        continue
 
-            exec_cmd(cmd, dryrun=dry_run)
-            cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_FA.nii.gz -n FA' % (trkwscalar, trkwscalar, subj)
+                cmd = 'copyScalarsToTract.py -i {input} -o {output} -m {collect} -n {name}'.format(input=input_tract, output=trkwscalar,collect=mapfile[0],name=mtype)
+                exec_cmd(cmd, dryrun=dry_run)
 
-            exec_cmd(cmd, dryrun=dry_run)
-            cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_MD.nii.gz -n MD' % (trkwscalar, trkwscalar, subj)            
+                if os.path.isfile(trkwscalar):
+                    input_tract = trkwscalar
+            # cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_RD.nii.gz -n RD' % (trkwscalar, trkwscalar, subj)
+
+            # exec_cmd(cmd, dryrun=dry_run)
+            # cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_FA.nii.gz -n FA' % (trkwscalar, trkwscalar, subj)
+
+            # exec_cmd(cmd, dryrun=dry_run)
+            # cmd = 'copyScalarsToTract.py -i %s -o %s -m %s_MD.nii.gz -n MD' % (trkwscalar, trkwscalar, subj)            
 
             exec_cmd(cmd, dryrun=dry_run)
             cmd = 'fascicle add -i %s -d %s' % (trkwscalar, tdb_file)
@@ -116,7 +144,7 @@ def tracts_merge(self, **kwargs):
             for idx,[subj,grp] in self.config.subject_df.iterrows():
                 subj = subj.strip()
                 trk_file = '_'.join([subj,tbasename+'.vtp'])
-                cmd = 'fascicle init -d %s -i %s --group %s' % (merged_tdb, trk_file, grp)
+                cmd = 'fascicle add -d %s -i %s --group %s' % (merged_tdb, trk_file, grp)
                 exec_cmd(cmd)
 
             merged_model_file = merged_file_basename+'.vtp'

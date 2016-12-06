@@ -642,13 +642,13 @@ class GroupTractStats:
 
                     roi_file = roi.get_filename(subj, ref='t1')
                     shutil.copyfile(path.join(processed_path,roi_file), path.join(subjdir,roi_file))
-            stream_map = {}
-            fiber_name = ''
-            method_name = ''
 
 
             ############ Pass on methods list and generate tracts
 
+            stream_map = {}
+            fiber_name = ''
+            method_name = ''
 
                             
             seeds = c.seeds_def
