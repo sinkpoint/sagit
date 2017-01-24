@@ -8,7 +8,7 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
         dry_run = kwargs['dry_run']
     subj = subject.name
     print '============================',subj
-    tract_path = self.config.tractography_path_full
+    tract_path = subject.tractography_path
     output_path = os.path.join(self.config.processed_path, 'tractography')
 
     if not os.path.isdir(output_path):
@@ -123,7 +123,7 @@ def tracts_merge(self, **kwargs):
     if 'dry_run' in kwargs:
         dry_run = kwargs['dry_run']
     print '============= Tract Merge ==============='
-    tract_path = self.config.tractography_path_full
+    # tract_path = self.config.tractography_path_full
     output_path = os.path.join(self.config.processed_path, 'tractography')
     print output_path
 

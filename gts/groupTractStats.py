@@ -527,7 +527,7 @@ class GroupTractStats:
         T1_processed_path = c.T1_processed_path
         processed_path = c.processed_path
         ind_roi_path = c.ind_roi_path
-        tractography_path = c.tractography_path_full
+        # tractography_path = c.tractography_path_full
 
         if not path.isdir(tractography_path):
             mkdir(tractography_path)
@@ -542,6 +542,8 @@ class GroupTractStats:
 
         for subject in c.subjects:
             subj = subject.name
+            tractography_path = subject.tractography_path
+
             print '-----------------------------------------------------------------'
             print subj
             subjdir = path.join( tractography_path,subj)
@@ -728,7 +730,8 @@ class GroupTractStats:
         c = self.config
         for subject in c.subjects:
             subj = subject.name
-            chdir(path.join(c.tractography_path,subj))
+            tractography_path = subject.tractography_path
+            chdir(path.join(tractography_path,subj))
             print '========== %s =========' % subj
 
             ref_file = 'ANTS_%s_invDeformed_T1.nii.gz' % subj
@@ -762,7 +765,7 @@ class GroupTractStats:
         processed_path = c.processed_path
         rois= c.template_rois
         ind_roi_path = c.ind_roi_path
-        tractography_path = c.tractography_path
+        # tractography_path = c.tractography_path
 
         for label_name, seed_def in c.seeds_def.iteritems():
             for imethod in c.tract_method:
@@ -828,6 +831,8 @@ class GroupTractStats:
 
                 for subject in c.subjects:
                     subj = subject.name
+                    tractography_path = subject.tractography_path
+
                     subj_tractography_path = path.join( tractography_path,subj)
                     print subj_tractography_path
                     chdir(subj_tractography_path)
@@ -916,7 +921,8 @@ class GroupTractStats:
 
         for subject in c.subjects:
             subj = subject.name
-            chdir(path.join(c.tractography_path_full,subj))
+            tractography_path = subject.tractography_path
+            chdir(path.join(tractography_path,subj))
             for method, file_list in stream_map.iteritems():
                 method_path = path.join( img_path,method)
 
@@ -1002,7 +1008,7 @@ class GroupTractStats:
         """
 
         c = self.config
-        tract_path = c.tractography_path_full
+        # tract_path = c.tractography_path_full
 
         image_table = []
         not_found_table = []
@@ -1019,6 +1025,9 @@ class GroupTractStats:
 
         for subject in c.subjects:
             subj = subject.name
+            tract_path = subject.tractography_path
+
+
             chdir(path.join(tract_path,subj))
             subj_files = []
 

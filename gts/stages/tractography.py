@@ -16,7 +16,7 @@ def per_subject_prepareRoiFiles(self, subject, **kwargs):
     c = self.config
     subj = subject.name        
     processed_path = c.processed_path
-    tractography_path = c.tractography_path_full
+    tractography_path = subject.tractography_path
     subjdir = path.join( tractography_path,subj)
 
     root = os.getcwd()

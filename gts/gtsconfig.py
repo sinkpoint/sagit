@@ -135,7 +135,7 @@ class GtsConfig(object):
         self.subjects_pool = self.subjects
 
     def subj_to_tuple(self, name):
-        return self.Subject(name=name.rstrip(),group='0', dwi_path=self.default_dwi_path, freesurfer_path=self.default_freesurfer_path, dwi_autodetect_folder=self.dwi_autodetect_folder)
+        return self.Subject(name=name.rstrip(),group='0', dwi_path=self.default_dwi_path, freesurfer_path=self.default_freesurfer_path, dwi_autodetect_folder=self.dwi_autodetect_folder, tractography_path=self.tractography_path_full)
 
     def loadFromJson(self,conf=""):
         if not conf == "":
