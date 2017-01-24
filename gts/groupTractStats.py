@@ -10,6 +10,9 @@ import json
 import numpy as np
 import os
 import shutil
+from functools import partial
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
 
 from glob import glob
 from os import chdir
@@ -98,9 +101,20 @@ class GroupTractStats:
         self.config.subjects = filtered
         print self.config.subjects
 
+    def _run_pool_wrapper(self, (func, subj), **kwargs):
+        func(self, subj, **kwargs)
+
     def runPerSubject(self, func, **kwargs):
-        for subj in self.config.subjects:
-            func(self, subj, **kwargs)
+        if 'single_thread' in kwargs and kwargs['single_thread'] is True:
+            for subj in self.config.subjects:
+                func(self, subj, **kwargs)
+        else:
+            poolargs = [ (func, subj) for subj in self.config.subjects]
+            print '# runPerSubj args',poolargs
+            pool = ThreadPool()
+            pool.map(partial(self._run_pool_wrapper, **kwargs), poolargs)
+            pool.close()
+            pool.join()
 
     def run(self, func, **kwargs):
         func(self, **kwargs)
@@ -140,7 +154,7 @@ class GroupTractStats:
         imgext = c.imgext
         prefix = c.prefix
         affix = c.affix
-        T1_processed_path = c.T1_processed_path
+        T1_path = c.T1_path
         processed_path = c.processed_path
         ind_roi_path = c.ind_roi_path
 
@@ -170,7 +184,7 @@ class GroupTractStats:
             fs_aseg_file = path.join( c.preprocessed_path , self._g(subj,'fs','aseg', prefix=False))
             fs2fsl_mat = path.join( c.preprocessed_path , self._g(subj,'fs','fs2fsl','mat.txt', prefix=False, ext=False))
             subj_aseg = path.join( c.preprocessed_path , self._g(subj,'aseg', prefix=False))
-            subj_t1 = path.join( c.orig_path,self._g(subj,'T1', prefix=False))
+            subj_t1 = path.join( T1_path, self._g(subj, prefix=False))
             dwi_aseg = path.join( c.preprocessed_path,self._g(subj, 'aseg', 'dwi', prefix=False))
 
             print '#',fs2fsl_mat
@@ -202,7 +216,6 @@ class GroupTractStats:
                 interp: Interpolation method used for deformation. This must match the antsApplyTransforms command. Default is 'NearestNeighbor'
         """
         c = self.config
-        orig_path = c.orig_path
         imgext = c.imgext
         prefix = c.prefix
         affix = c.affix
@@ -240,10 +253,12 @@ class GroupTractStats:
 
 
         ref = '%s_FA.nii.gz' % subj
-        if reference=='t1':
-            ref = '%s_T1.nii.gz' % subj
-
         ref = path.join( orig_path,ref)
+
+        if reference=='t1':
+            ref = '%s.nii.gz' % subj
+            ref = path.join(c.T1_path, ref)
+
 
         invWarpAffix = 'InverseWarp.nii.gz'
         warpAffix = 'Warp.nii.gz'
@@ -279,14 +294,15 @@ class GroupTractStats:
 
 
         ref = '%s_FA.nii.gz' % subj
+        ref = path.join( orig_path,ref)
         if reference=='t1':
-            ref = '%s_T1.nii.gz' % subj
+            ref = '%s.nii.gz' % subj
+            ref = path.join( c.T1_path,ref)
 
         if auto_naming:
             output = output+'_'+reference+imgext
         #print '######t1_to_dwi#######',output
 
-        ref = path.join( orig_path,ref)
 
         invWarpAffix = 'InverseWarp.nii.gz'
         warpAffix = 'Warp.nii.gz'
@@ -316,16 +332,16 @@ class GroupTractStats:
 
     def get_ants_t1_to_avg_transforms(self, subj, inverse=False, reference='t1'):
         c = self.config
-        orig_path = c.orig_path
+        T1_path = c.T1_path
         processed_path = c.T1_processed_path
 
         #subj_pref = self._g(subj,ext=False)
         subj_pref = c.prefix+'_'+subj
 
-        ref = '%s_T1.nii.gz' % subj
+        ref = '%s.nii.gz' % subj
         if reference=='average':
             ref = c.group_template_file
-        ref = path.join( orig_path,ref)
+        ref = path.join( T1_path,ref)
 
         group_prefix = c.group_prefix
         invWarpAffix = group_prefix+'InverseWarp.nii.gz'
@@ -352,7 +368,7 @@ class GroupTractStats:
     def ants_apply_transform_average_to_t1(self, subj, input, output, reference='t1', interp='NearestNeighbor', inverse=False,just_transform_param=False):
 
         c = self.config
-        orig_path = c.orig_path
+        T1_path = c.T1_path
         imgext = c.imgext
         prefix = c.prefix
         affix = c.affix
@@ -361,10 +377,10 @@ class GroupTractStats:
         #subj_pref = self._g(subj,ext=False)
         subj_pref = c.prefix+'_'+subj
 
-        ref = '%s_T1.nii.gz' % subj
+        ref = '%s.nii.gz' % subj
         if reference=='average':
             ref = c.group_template_file
-        ref = path.join( orig_path,ref)
+        ref = path.join( T1_path,ref)
 
         group_prefix = c.group_prefix
         invWarpAffix = group_prefix+'InverseWarp.nii.gz'
@@ -402,6 +418,7 @@ class GroupTractStats:
             dwi_path = c.default_dwi_path
             dwi_autodetect_folder = c.dwi_autodetect_folder
             
+
             if subject.group in c.group_paths:
                 try:
                     grouppaths = c.group_paths[subject.group]
@@ -409,7 +426,7 @@ class GroupTractStats:
                     dwi_path = grpdwipath if grpdwipath else dwi_path
 
                     dwi_autodetect_folder = grouppaths['dwi_autodetect_folder']
-                except KeyError:
+                except KeyError or TypeError:
                     pass
 
 
@@ -458,6 +475,7 @@ class GroupTractStats:
         preprocessed_path = c.preprocessed_path
         root_path = getcwd()
         orig_path = c.orig_path
+        t1_path = c.T1_path
 
         betfiles = ""
         #_SIMULATE = True
@@ -467,7 +485,7 @@ class GroupTractStats:
             chdir(orig_path)
             print getcwd()
 
-            cmd='bet2 %s_T1 %s_T1_bet -f %s ' % (subj, subj, bet)
+            cmd='bet2 %s %s_T1_bet -f %s ' % (path.join(t1_path,subj), subj, bet)
             exec_cmd(cmd)
 
             cmd='bet2 %s_MDWI %s_MDWI_bet -m -f %s' % (subj, subj, bet)

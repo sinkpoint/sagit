@@ -39,6 +39,7 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
     if not collect_settings or 'default_set' in collect_settings:
         maps = ['FA','RD','AD','MD']
 
+    print collect_settings
     for m in collect_settings:
         if m == 'default_set':
             continue

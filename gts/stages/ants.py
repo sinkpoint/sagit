@@ -11,6 +11,7 @@ def per_subj_ants_dwi_to_t1(self, subject, **kwargs):
         pass
 
     print '------------------- DWI To T1 %s -------------------' % subject.name
+    print kwargs
     os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = str(multiprocessing.cpu_count())
 
 
@@ -44,7 +45,8 @@ def per_subj_ants_dwi_to_t1(self, subject, **kwargs):
 
     through = 'AP' # use AP by default
     if 'through' in kwargs:
-        through  =  kwargs['through'] 
+        through  =  kwargs['through']
+        
     MEDIUM = "{0}_{1}_bet.nii.gz".format(subj, through) 
 
     outRoot = OutPrefix+subj
@@ -87,3 +89,40 @@ def per_subj_ants_dwi_to_t1(self, subject, **kwargs):
     exec_cmd(cmd) 
 
 
+def per_subj_ants_t1_to_template(self, subject, **kwargs):
+    c = self.config
+    subj = subject.name
+
+    overwrite = False
+    try:
+        overwrite = kwargs['overwrite']
+    except KeyError:
+        pass
+
+    print '------------------- T1 To TEMPLATE %s -------------------' % subj
+    os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = str(multiprocessing.cpu_count())
+
+    ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=multiprocessing.cpu_count()
+    overwrite=0
+    
+    #specify folder names
+    template_file = path.join(c.orig_path, c.group_template_file)
+    t1_dir = "group_template"
+    inputDir = path.join(c.T1_path)
+    outDir = path.join(c.T1_processed_path)
+
+    #specify parameters for antsIntroduction.sh
+    #compulsory arguments
+    ImageDimension=3
+    OutPrefix='ANTS_'
+
+    #If not created yet, let's create a new output folder
+    if not path.exists(outDir):
+        os.mkdir(outDir)
+
+    mov="{inputDir}/{subj}.nii.gz".format(**locals())
+    ref=template_file
+    out="{outDir}/{OutPrefix}{subj}".format(**locals())
+
+    cmd="time antsRegistrationSyN.sh -d {ImageDimension} -m {mov} -f {ref} -o {out} -t s -n {ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS}".format(**locals())
+    exec_cmd(cmd)

@@ -30,7 +30,8 @@ class GtsConfig(object):
             self._CONFIG["subject_dti_path"] = '/media/AMMONIS/projects/controls'
             self._CONFIG["template_roi_path"] = "/media/AMMONIS/proejcts/mtt_anat/C5_to_avgs/processed"
             self._CONFIG['default_dwi_path']  = '/media/AMMONIS/scans/normals/'
-            self._CONFIG['dwi_autodetect_folder'] = "*DTI*",
+            self._CONFIG['dwi_autodetect_folder'] = "*DTI*"
+            self._CONFIG['group_paths'] = {}
             self._CONFIG["tractography_path"] = './tractography'
             self._CONFIG["ind_roi_path"] = "./rois"
             self._CONFIG["prefix"]="ANTS_"
@@ -68,12 +69,23 @@ class GtsConfig(object):
         if conf_file:
             self.conf_name = path.basename(conf_file).split('.')[0]
             basename = conf_file.split('.')[0]
-        self.orig_path = abspath(self.orig_path)
-        self.preprocessed_path = abspath(self.preprocessed_path)
-        self.T1_processed_path = abspath(self.T1_processed_path)
-        self.processed_path = abspath(self.processed_path)
-        self.ind_roi_path = abspath(self.ind_roi_path)
+        
+        for key in self._CONFIG.keys():
+            if '_path' in key:
+                val = self._CONFIG[key]
+                self._CONFIG[key] = abspath(val)
+
+        # self.orig_path = abspath(self.orig_path)
+        # self.preprocessed_path = abspath(self.preprocessed_path)
+        # self.T1_processed_path = abspath(self.T1_processed_path)
+        # self.processed_path = abspath(self.processed_path)
+        # self.ind_roi_path = abspath(self.ind_roi_path)
         self.tractography_path_full = abspath(self.tractography_path)
+
+        if not self.group_paths:
+            self.group_paths = {}
+        if not self.collect_maps:
+            self.collect_maps = ['default_set']
 
         self.tract_time_log_file = path.join(self.root, '_'.join([basename, self.tract_time_log_file]))
 
