@@ -13,7 +13,7 @@ class GtsConfig(object):
     'tract_time_log_file' : 'tract_time_stats.csv'
     }
 
-    Subject = namedtuple('Subject', 'name group dwi_path freesurfer_path dwi_autodetect_folder')
+    Subject = namedtuple('Subject', 'name group dwi_path freesurfer_path dwi_autodetect_folder tractography_path')
 
     def __init__(self,conf_file=None, configure=True):
         self._SIMULATE = False
@@ -113,15 +113,25 @@ class GtsConfig(object):
                 myfs = self.default_freesurfer_path
                 mydwiauto = self.dwi_autodetect_folder
 
+                mypaths = {
+                    "name": name,
+                    "group": str(group),
+                    "dwi_path": self.default_dwi_path,
+                    "dwi_autodetect_folder": self.dwi_autodetect_folder,
+                    "freesurfer_path": self.default_freesurfer_path,
+                    "tractography_path": self.tractography_path_full
+                }
+
                 if self.group_paths and str(group) in self.group_paths:
                     try:
-                        mydwi = self.group_paths[group]['dwi']
-                        mydwiauto = self.group_paths[group]['dwi_autodetect_folder']
-                        myfs = self.group_paths[group]['freesurfer']
+                        mypaths['dwi_path'] = self.group_paths[group]['dwi']
+                        mypaths['dwi_autodetect_folder'] = self.group_paths[group]['dwi_autodetect_folder']
+                        mypaths['freesurfer_path'] = self.group_paths[group]['freesurfer']
+                        mypaths['tractography_path'] = self.group_paths[group]['tractography_path']
                     except KeyError:
                         pass
 
-                self.subjects.append(self.Subject(name=name, group=str(group), dwi_path=mydwi, freesurfer_path=myfs, dwi_autodetect_folder=mydwiauto))
+                self.subjects.append(self.Subject(**mypaths))
         self.subjects_pool = self.subjects
 
     def subj_to_tuple(self, name):
