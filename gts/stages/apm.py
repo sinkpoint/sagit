@@ -21,7 +21,17 @@ def per_subj_apm(self, subject, **kwargs):
         mypath = glob(path.join(mypath,subject.dwi_autodetect_folder))[0]    
     dwi_path = path.join(mypath, 'nifti')
 
-    print '--------------------------------run AP %s ---------------------------------' % subj
+    is_overwrite = 'overwrite' in kwargs and kwargs['overwrite']
+
+    print '--------------------------------run AP GFA %s ---------------------------------' % subj
+
+    ap_file = path.join(c.preprocessed_path, subj+'_AP_bet.nii.gz')
+    gfa_file = path.join(c.preprocessed_path, subj+'_GFA_bet.nii.gz')
+
+    if os.path.exists(ap_file) and not is_overwrite:
+        # file already exists
+        print '{} already exists, skipping'.format(ap_file)
+        return
 
     # the bet mask should already be generated
     dwi_file = path.join(dwi_path, 'DWI_CORRECTED.nii.gz')
@@ -48,12 +58,10 @@ def per_subj_apm(self, subject, **kwargs):
     ap_data = sh_to_ap(coeffs)
     newimg = nib.Nifti1Image(ap_data, affine)
 
-    ap_file = path.join(c.preprocessed_path, subj+'_AP_bet.nii.gz')
     nib.save(newimg, ap_file) 
 
     # GFA
     gfa_data = peaks.gfa
     newimg = nib.Nifti1Image(gfa_data, affine)
 
-    ap_file = path.join(c.preprocessed_path, subj+'_GFA_bet.nii.gz')
-    nib.save(newimg, ap_file)
+    nib.save(newimg, gfa_file)

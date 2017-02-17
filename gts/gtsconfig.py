@@ -1,6 +1,7 @@
 import gtsroi
+from builtins import str
 import hjson
-
+# from builtins import str
 from os import getcwd
 from os import path
 from os.path import abspath
@@ -8,40 +9,43 @@ import pandas as pd
 from glob import glob
 from collections import namedtuple
 
+
 class GtsConfig(object):
     _CONFIG={
     'tract_time_log_file' : 'tract_time_stats.csv'
     }
 
-    Subject = namedtuple('Subject', 'name group dwi_path freesurfer_path dwi_autodetect_folder tractography_path')
+    Subject = namedtuple('Subject', 'name group dwi_path freesurfer_path dwi_autodetect_folder tractography_path processed_path')
 
     def __init__(self,conf_file=None, configure=True):
         self._SIMULATE = False
 
-        if not conf_file:
+        # if not conf_file:
             # defaults 
             #self._CONFIG = {}
-            self._CONFIG["name"] = "study"
-            self._CONFIG["root"] = getcwd()
-            self._CONFIG["orig_path"] = "./orig"
-            self._CONFIG["preprocessed_path"] = "./preprocessed"
-            self._CONFIG["T1_processed_path"] = "./T1s/processed"
-            self._CONFIG["processed_path"] = "./processed"
-            self._CONFIG["subject_dti_path"] = '/media/AMMONIS/projects/controls'
-            self._CONFIG["template_roi_path"] = "/media/AMMONIS/proejcts/mtt_anat/C5_to_avgs/processed"
-            self._CONFIG['default_dwi_path']  = '/media/AMMONIS/scans/normals/'
-            self._CONFIG['dwi_autodetect_folder'] = "*DTI*"
-            self._CONFIG['group_paths'] = {}
-            self._CONFIG["tractography_path"] = './tractography'
-            self._CONFIG["ind_roi_path"] = "./rois"
-            self._CONFIG["prefix"]="ANTS_"
-            self._CONFIG["affix"]=''
-            self._CONFIG["template_rois"] = ['roi_con', 'all-targets_con']
-            self._CONFIG["rois"] = ['roi', 'all-targets']
-            self._CONFIG["imgext"] = '.nii.gz'
-            self.subjects = []
+        self._CONFIG["name"] = "study"
+        self._CONFIG["root"] = getcwd()
+        self._CONFIG["orig_path"] = "./orig"
+        self._CONFIG["preprocessed_path"] = "./preprocessed"
+        self._CONFIG["T1_processed_path"] = "./T1s/processed"
+        self._CONFIG["T1_dicom_path"] = "./dicom"
+        self._CONFIG["T1_autodetect"] = "*T1*"
+        self._CONFIG["processed_path"] = "./processed"
+        self._CONFIG["subject_dti_path"] = '/media/AMMONIS/projects/controls'
+        self._CONFIG["template_roi_path"] = "/media/AMMONIS/proejcts/mtt_anat/C5_to_avgs/processed"
+        self._CONFIG['default_dwi_path']  = '/media/AMMONIS/scans/normals/'
+        self._CONFIG['dwi_autodetect_folder'] = "*DTI*"
+        self._CONFIG['group_paths'] = {}
+        self._CONFIG["tractography_path"] = './tractography'
+        self._CONFIG["ind_roi_path"] = "./rois"
+        self._CONFIG["prefix"]="ANTS_"
+        self._CONFIG["affix"]=''
+        self._CONFIG["template_rois"] = ['roi_con', 'all-targets_con']
+        self._CONFIG["rois"] = ['roi', 'all-targets']
+        self._CONFIG["imgext"] = '.nii.gz'
+        self.subjects = []
 
-        else:
+        if conf_file:
             self.conf_file = conf_file
             self.loadFromJson(conf_file)
             if configure:
@@ -73,7 +77,8 @@ class GtsConfig(object):
         for key in self._CONFIG.keys():
             if '_path' in key:
                 val = self._CONFIG[key]
-                self._CONFIG[key] = abspath(val)
+                if isinstance(val, str): 
+                    self._CONFIG[key] = abspath(val)
 
         # self.orig_path = abspath(self.orig_path)
         # self.preprocessed_path = abspath(self.preprocessed_path)
@@ -109,33 +114,37 @@ class GtsConfig(object):
             for i, name, grp in self.subject_df.itertuples():
                 group = str(grp)
                 print i,name,group
-                mydwi = self.default_dwi_path
-                myfs = self.default_freesurfer_path
-                mydwiauto = self.dwi_autodetect_folder
 
-                mypaths = {
+                myinfo = {
                     "name": name,
-                    "group": str(group),
+                    "group": group
+                }
+
+                PASSABLE = {
                     "dwi_path": self.default_dwi_path,
                     "dwi_autodetect_folder": self.dwi_autodetect_folder,
                     "freesurfer_path": self.default_freesurfer_path,
-                    "tractography_path": self.tractography_path_full
+                    "tractography_path": self.tractography_path_full,
+                    "processed_path": self.processed_path                    
                 }
 
-                if self.group_paths and str(group) in self.group_paths:
-                    try:
-                        mypaths['dwi_path'] = self.group_paths[group]['dwi']
-                        mypaths['dwi_autodetect_folder'] = self.group_paths[group]['dwi_autodetect_folder']
-                        mypaths['freesurfer_path'] = self.group_paths[group]['freesurfer']
-                        mypaths['tractography_path'] = self.group_paths[group]['tractography_path']
-                    except KeyError:
-                        pass
+                for key,val in PASSABLE.iteritems():
+                    myinfo[key] = val
 
-                self.subjects.append(self.Subject(**mypaths))
+                if self.group_paths and group in self.group_paths:
+                    for key,val in PASSABLE.iteritems():
+                        try:
+                            myinfo[key] = self.group_paths[group][key]
+                        except KeyError:
+                            pass
+
+                self.subjects.append(self.Subject(**myinfo))
         self.subjects_pool = self.subjects
 
     def subj_to_tuple(self, name):
-        return self.Subject(name=name.rstrip(),group='0', dwi_path=self.default_dwi_path, freesurfer_path=self.default_freesurfer_path, dwi_autodetect_folder=self.dwi_autodetect_folder, tractography_path=self.tractography_path_full)
+        return self.Subject(name=name.rstrip(),group='0', dwi_path=self.default_dwi_path, 
+            freesurfer_path=self.default_freesurfer_path, dwi_autodetect_folder=self.dwi_autodetect_folder, 
+            tractography_path=self.tractography_path_full, processed_path=self.processed_path )
 
     def loadFromJson(self,conf=""):
         if not conf == "":

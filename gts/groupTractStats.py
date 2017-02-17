@@ -440,13 +440,6 @@ class GroupTractStats:
             chdir(path.join(dwi_folder,'nifti'))
             print getcwd()
 
-            #if not path.isfile("vol0000.nii.gz"):
-                #print "vol not found"
-                #cmd="fslsplit Motion_Corrected_DWI_nobet.nii.gz"
-                #exec_cmd(cmd)
-
-                #cmd="slicerFileConvert.sh -i vol0000.nii.gz -o %s/%s_b0.nii.gz" % (orig_path, subj)
-                #
             cmd="fslmaths DWI_CORRECTED.nii.gz -Tmean %s" % (path.join(c.orig_path,subj+'_MDWI'))
             exec_cmd(cmd)
 
@@ -455,7 +448,6 @@ class GroupTractStats:
 
             chdir(root_path)
 
-            #shutil.copyfile('T1s/orig/'+subj+'.nii.gz', path.join(c.orig_path,subj+'_T1.nii.gz'))
 
         chdir(root_path)
 
@@ -527,7 +519,7 @@ class GroupTractStats:
         T1_processed_path = c.T1_processed_path
         processed_path = c.processed_path
         ind_roi_path = c.ind_roi_path
-        # tractography_path = c.tractography_path_full
+        tractography_path = c.tractography_path_full
 
         if not path.isdir(tractography_path):
             mkdir(tractography_path)

@@ -142,9 +142,15 @@ def tracts_merge(self, **kwargs):
             # if os.path.isfile(merged_tdb):
             #     print 'remove old %s' % (merged_tdb)
             #     os.remove(merged_tdb)
-            for idx,[subj,grp] in self.config.subject_df.iterrows():
+            # for idx,[subj,grp] in self.config.subject_df.iterrows():
+            for subject in self.config.subjects:
+                subj = subject.name
+                grp = subject.group
                 subj = subj.strip()
                 trk_file = '_'.join([subj,tbasename+'.vtp'])
+                print self.config.processed_path, subject.processed_path
+                if subject.processed_path != self.config.processed_path:
+                    trk_file = os.path.join(subject.processed_path,'tractography', trk_file)
                 cmd = 'fascicle add -d %s -i %s --group %s' % (merged_tdb, trk_file, grp)
                 exec_cmd(cmd)
 

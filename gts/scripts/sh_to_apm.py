@@ -63,7 +63,7 @@ def peaks_from_nifti(fdwi, fbvec=None, fbval=None, mask=None):
             fbval = fbase+".bval"
         if not fbvec:
             fbvec = fbase+".bvec"
-
+    print fdwi
     img = nib.load(fdwi)
     data = img.get_data()
     zooms = img.get_header().get_zooms()[:3]
@@ -92,7 +92,7 @@ def peaks_from_nifti(fdwi, fbvec=None, fbval=None, mask=None):
     sphere = get_sphere('symmetric724')
 
     print "fit Qball peaks"
-    proc_num = multiprocessing.cpu_count()-1
+    proc_num = multiprocessing.cpu_count()
     print "peaks_from_model using core# =" + str(proc_num)
 
     peaks = peaks_from_model(model=model, data=maskdata, relative_peak_threshold=.5,

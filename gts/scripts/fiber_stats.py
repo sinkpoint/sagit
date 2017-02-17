@@ -206,7 +206,7 @@ def position_stats(df, name_mapping=None):
         print pos
         data = df[df.position==pos]
         data = data.groupby(['sid']).mean()
-        data = df[(df.group == 0) | (df.group == 3)]
+        # data = df[(df.group == 0) | (df.group == 3)]
         # print data
 
 
@@ -250,13 +250,13 @@ def position_stats(df, name_mapping=None):
     return pd.DataFrame(data=corr_pvals, columns=header)
 
 def stats_per_group(x):
-    res = {'median':[],'qtile':[],'ci':[]}
+    res = {'median':[],'qtile':[]}
     medians = np.median(x)
     res['mean'] = np.average(x)
     res['median'] = medians
     lower_quartile, upper_quartile = np.percentile(x, [25,75])
     res['qtile'] = (upper_quartile, lower_quartile)
-#    res['ci'] = np.percentile(x, [2.5,97.5])
+    # res['ci'] = np.percentile(x, [2.5,97.5])
     iqr = upper_quartile - lower_quartile
     upper_whisker = x[x<=upper_quartile+1.5*iqr].max()
     lower_whisker = x[x>=lower_quartile-1.5*iqr].min()
@@ -522,7 +522,7 @@ def main():
         UNIQ_GROUPS = df.group.unique()
         UNIQ_GROUPS.sort()
 
-        UNIQ_GROUPS = [0,3]
+        # UNIQ_GROUPS = [0,1]
 
         grppal = sns.color_palette("Set2", len(UNIQ_GROUPS))
 
@@ -575,17 +575,27 @@ def main():
 
         legend_handles = []
         for gi, GRP in enumerate(UNIQ_GROUPS):
+            print '--------------------',gi,'----------------------'
             subgrp = df[df['group']==GRP]
-
+            print len(subgrp)
+            
             posGrp = subgrp.groupby('position', sort=True)
+
             #cent_stats = posGrp.FA.mean().as_matrix()
             cent_stats = posGrp.value.apply(lambda x:stats_per_group(x))
             # cent_std = posGrp.FA.apply(lambda x:np.std(x)).as_matrix()
             # # bootstrap 68% CI, or 1 standard deviation
             #cent_ci = posGrp.value.apply(lambda x: stats.norm.interval(0.95,loc=np.median(x),scale=np.std(x))).as_matrix()
 
+            print cent_stats
+            if len(cent_stats) == 0:
+                continue
+            
             cent_stats = cent_stats.unstack()
             cent_median_scalar = cent_stats['median'].tolist()
+            # print cent_stats
+            # cent_median_scalar = [ i[2] for i in cent_stats]
+
             x = np.array([i for i in posGrp.groups])
             # print x
 
