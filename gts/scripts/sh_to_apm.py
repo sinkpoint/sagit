@@ -92,7 +92,7 @@ def peaks_from_nifti(fdwi, fbvec=None, fbval=None, mask=None):
     sphere = get_sphere('symmetric724')
 
     print "fit Qball peaks"
-    proc_num = multiprocessing.cpu_count()
+    proc_num = multiprocessing.cpu_count()-1
     print "peaks_from_model using core# =" + str(proc_num)
 
     peaks = peaks_from_model(model=model, data=maskdata, relative_peak_threshold=.5,

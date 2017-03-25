@@ -23,7 +23,7 @@ def tracts_to_density(ref, tracts, basename=''):
 def file_to_streamline(filename):
     ext = os.path.splitext(filename)
 
-    if ext[1]=='.vtk':
+    if ext[1]=='.vtk' or ext[1]=='.vtp':
         streams, vtkobj = vtkToStreamlines(filename)
         return streams
     elif ext[1]=='.tck':

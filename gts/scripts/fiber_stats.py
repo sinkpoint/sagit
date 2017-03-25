@@ -10,8 +10,9 @@ import scipy
 import sys
 import vtk
 import math
-#import scikits.bootstrap as bootstrap
+import scikits.bootstrap as bootstrap
 import scipy.stats as stats
+import yaml
 
 from vtk.util.numpy_support import vtk_to_numpy
 
@@ -185,7 +186,6 @@ def position_stats(df, name_mapping=None):
     from functools32 import partial, wraps
     POS = df.position.unique()
     POS.sort()
-    print len(POS)
     model = 'value ~ group'
     allpvals = None
     header = None
@@ -200,19 +200,24 @@ def position_stats(df, name_mapping=None):
 
     stats_test = ttest_ind_nev
     GROUPS = df.group.unique()
-    GROUPS = [0,3]
+    # GROUPS = [0,3]
 
     for pos in POS:
-        print pos
+        # print pos
         data = df[df.position==pos]
         data = data.groupby(['sid']).mean()
+        data = resample_data(data, num_sample_per_pos=72)
+        print data
+        # print data.group.unique()
         # data = df[(df.group == 0) | (df.group == 3)]
         # print data
-
+        # sys.exit()
 
         #cross = smf.ols(model, data=data).fit()
         #anova = sm.stats.anova_lm(cross, type=1)
-        mcp = MultiComparison(data.value, data.group)
+        # print data.group
+
+        mcp = MultiComparison(data.value, data.group.astype(int))
 
         rtp = mcp.allpairtest(stats_test, method='fdr_bh')
         mheader = []
@@ -227,26 +232,30 @@ def position_stats(df, name_mapping=None):
 
         if not header or len(mheader) > len(header):
             header = mheader
+        
+        # get the uncorrecte pvals
         pvals = rtp[1][0][:,1]
-        print pvals
-        # print mheader
-        # print pvals
+
         ndf = pd.DataFrame(data=[pvals], columns=mheader)
         if allpvals is None:
             allpvals = ndf
         else:
             allpvals = pd.concat([allpvals,ndf])
-            
+    
+    # return allpvals
     # corr_pvals = allpvals    
+    # print allpvals
+    # return allpvals
+
     flatten = allpvals.values.ravel()
     flatten = flatten * 2
     mcpres = multipletests(flatten, alpha=0.05, method='fdr_bh')
     print mcpres
     corr_pvals = np.array(mcpres[1])
-    print corr_pvals
+    # print corr_pvals
     corr_pvals = np.reshape(corr_pvals, (len(POS),-1))
 
-    print corr_pvals
+    print corr_pvals,corr_pvals.shape,header
     return pd.DataFrame(data=corr_pvals, columns=header)
 
 def stats_per_group(x):
@@ -289,6 +298,7 @@ def main():
     parser.add_option('--xrange', dest='xrange')
     parser.add_option('--yrange', dest='yrange')
     parser.add_option('--config', dest='config')
+    parser.add_option('--annot', dest='annot')
     (options, args) = parser.parse_args()
 
     if len(args) == 0:
@@ -299,6 +309,12 @@ def main():
     if options.config:
         config = GtsConfig(options.config, configure=False)
         name_mapping = config.group_labels
+
+    annotations = None
+    if options.annot:
+        with open(options.annot,'r') as fp:
+            annotations = yaml.load(fp)
+            
 
     QB_DIST = options.dist
     QB_NPOINTS = options.num
@@ -353,9 +369,13 @@ def main():
         # index np.array by a list will get all the respective indices
         streamlines.append(verts[i])
         stream_scalars.append(scalars[i])
-        stream_groups.append(groups[i])
         stream_pids.append(i)
         stream_sids.append(subjects[i])
+        try:
+            stream_groups.append(groups[i])
+        except Exception:
+            # group might not exist
+            pass
 
     streamlines = np.array(streamlines)
     stream_scalars = np.array(stream_scalars)
@@ -543,10 +563,12 @@ def main():
         ax2 = plt.subplot2grid((4,3),(3,0),colspan=3,sharex=ax1)
         axes = [ax1,ax2]
 
-        plt.xlabel('Position Index')     
-        cent_patch = mpatches.Patch(color=cent_color, label='Centroid {}'.format(ci+1))
-        cent_legend = axes[0].legend(handles=[cent_patch], loc=9)
-        axes[0].add_artist(cent_legend)
+        plt.xlabel('Position Index')   
+        
+        if len(centroids) > 1:  
+            cent_patch = mpatches.Patch(color=cent_color, label='Centroid {}'.format(ci+1))
+            cent_legend = axes[0].legend(handles=[cent_patch], loc=9)
+            axes[0].add_artist(cent_legend)
 
         """
             Perform stats
@@ -557,7 +579,7 @@ def main():
             print df
             pvalsDf = position_stats(df, name_mapping=name_mapping)
             logpvals = np.log(pvalsDf)*-1
-            #print logpvals
+            print logpvals
 
 
             pvals = logpvals.mask(pvalsDf >= 0.05 ) 
@@ -647,11 +669,21 @@ def main():
                 plotrange = options.yrange.split(',')
                 cur_axe.set_ylim([float(plotrange[0]), float(plotrange[1])])
 
+        
         legend_labels = UNIQ_GROUPS
         if name_mapping is not None:
             legend_labels = [ name_mapping[str(i)] for i in UNIQ_GROUPS]
         cur_axe.legend(legend_handles, legend_labels)
 
+        if annotations:
+            for key,val in annotations.iteritems():
+                print key
+                cur_axe.axvspan(val[0],val[1],fill=False, linestyle='dashed')
+                axis_to_data = cur_axe.transAxes + cur_axe.transData.inverted()
+                data_to_axis = axis_to_data.inverted()
+                axpoint = data_to_axis.transform((val[0],0))
+                print axpoint
+                cur_axe.text(axpoint[0], 1.02, key, transform=cur_axe.transAxes)
 
         """
             Plot 3D Viz 

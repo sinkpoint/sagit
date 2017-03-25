@@ -1,13 +1,32 @@
+# -*- coding: utf-8 -*-
+
 from gts import exec_cmd
 import os
 from glob import glob
+
+def find_scalar_file(mapname):
+    mapfile = glob('{mapname}.nii.gz'.format(**locals()))
+    if len(mapfile) == 0:
+        mapfile = glob('{mapname}_dwi.nii.gz'.format(**locals()))
+        if len(mapfile) == 0:
+            print 'WARNING',mapname,' not found during collecting maps.'
+            return None
+
+    return mapfile[0]
+
 
 def per_subj_tract_to_template_space(self, subject, **kwargs):
     dry_run = False
     if 'dry_run' in kwargs:
         dry_run = kwargs['dry_run']
     subj = subject.name
-    print '============================',subj
+    print '''
+╔╦╗┬─┐┌─┐┌─┐┌┬┐  ╔╦╗┌─┐  ╔╦╗┌─┐┌┬┐┌─┐┬  ┌─┐┌┬┐┌─┐
+ ║ ├┬┘├─┤│   │    ║ │ │   ║ ├┤ │││├─┘│  ├─┤ │ ├┤ 
+ ╩ ┴└─┴ ┴└─┘ ┴    ╩ └─┘   ╩ └─┘┴ ┴┴  ┴─┘┴ ┴ ┴ └─┘    
+ ================================================
+    '''
+    print subj
     tract_path = subject.tractography_path
     output_path = os.path.join(self.config.processed_path, 'tractography')
 
@@ -47,7 +66,7 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
 
     maps = list(set(maps))
 
-
+    print '>>>',maps
 
     for method, file_list in streamnames.iteritems():
         print '== Method %s' % method
@@ -58,14 +77,15 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
 
             for mtype in maps:
                 mapname = '_'.join([subj, mtype])
-                mapfile = glob('*{}.nii.gz'.format(mapname))
-                if len(mapfile) == 0:
-                    mapfile = glob('*{}_dwi.nii.gz'.format(mapname))
-                    if len(mapfile) == 0:
-                        print 'WARNING',subj,mapname,' not found during collecting maps.'
-                        continue
+                mapfile = find_scalar_file(mapname)
+                if not mapfile:
+                    # try to find in preprocessed files
+                    mapname = os.path.join(self.config.preprocessed_path, mapname+'*')
+                    mapfile = find_scalar_file(mapname)
+                    if not mapfile:
+                        continue                    
 
-                cmd = 'copyScalarsToTract.py -i {input} -o {output} -m {collect} -n {name}'.format(input=input_tract, output=trkwscalar,collect=mapfile[0],name=mtype)
+                cmd = 'copyScalarsToTract.py -i {input_tract} -o {trkwscalar} -m {mapfile} -n {mtype}'.format(**locals())
                 exec_cmd(cmd, dryrun=dry_run)
 
                 if os.path.isfile(trkwscalar):
@@ -122,7 +142,14 @@ def tracts_merge(self, **kwargs):
     dry_run = False
     if 'dry_run' in kwargs:
         dry_run = kwargs['dry_run']
-    print '============= Tract Merge ==============='
+    print '''
+===================================
+╔╦╗┬─┐┌─┐┌─┐┌┬┐┌─┐  ╔╦╗┌─┐┬─┐┌─┐┌─┐
+ ║ ├┬┘├─┤│   │ └─┐  ║║║├┤ ├┬┘│ ┬├┤ 
+ ╩ ┴└─┴ ┴└─┘ ┴ └─┘  ╩ ╩└─┘┴└─└─┘└─┘
+===================================
+    '''
+
     # tract_path = self.config.tractography_path_full
     output_path = os.path.join(self.config.processed_path, 'tractography')
     print output_path

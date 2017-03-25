@@ -2,6 +2,7 @@ from gts.gtsutils import exec_cmd
 from os import path
 import os
 import multiprocessing
+from glob import glob
 
 def per_subj_ants_dwi_to_t1(self, subject, **kwargs):
     overwrite = False
@@ -102,7 +103,7 @@ def per_subj_ants_t1_to_template(self, subject, **kwargs):
     print '------------------- T1 To TEMPLATE %s -------------------' % subj
     os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = str(multiprocessing.cpu_count())
 
-    ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=multiprocessing.cpu_count()
+    NUM_THREADS=multiprocessing.cpu_count()
     overwrite=0
     
     #specify folder names
@@ -124,5 +125,11 @@ def per_subj_ants_t1_to_template(self, subject, **kwargs):
     ref=template_file
     out="{outDir}/{OutPrefix}{subj}".format(**locals())
 
-    cmd="time antsRegistrationSyN.sh -d {ImageDimension} -m {mov} -f {ref} -o {out} -t s -n {ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS}".format(**locals())
+    existing = glob(out+'1InverseWarp*')
+    if len(existing) > 0 and not overwrite:
+        print 'found files matching ',out
+        print 'skipping'
+        return
+
+    cmd="time antsRegistrationSyN.sh -d {ImageDimension} -m {mov} -f {ref} -o {out} -t s -n {NUM_THREADS}".format(**locals())
     exec_cmd(cmd)

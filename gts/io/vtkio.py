@@ -2,7 +2,11 @@ import vtk
 import numpy as np
 
 def vtkToStreamlines(filename):
-    vreader = vtk.vtkPolyDataReader()
+    ext = filename.split('.')[-1]
+    if ext == 'vtp':
+        vreader = vtk.vtkXMLPolyDataReader()
+    else:
+        vreader = vtk.vtkPolyDataReader()
     vreader.SetFileName(filename)
     vreader.Update()
     inputPolyData = vreader.GetOutput()

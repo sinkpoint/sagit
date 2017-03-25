@@ -264,7 +264,7 @@ class GroupTractStats:
         warpAffix = 'Warp.nii.gz'
         affAffix = 'Affine.txt'
 
-        if len(glob(subj_pref+'*'+affAffix)) == 0:
+        if len(glob(subj_pref+affAffix)) == 0:
             # can't find affine.txt, assume it's mat
             invWarpAffix = '1InverseWarp.nii.gz'
             warpAffix = '1Warp.nii.gz'
@@ -308,7 +308,7 @@ class GroupTractStats:
         warpAffix = 'Warp.nii.gz'
         affAffix = 'Affine.txt'
 
-        if len(glob(subj_pref+'*'+affAffix)) == 0:
+        if len(glob(subj_pref+affAffix)) == 0:
             # can't find affine.txt, assume it's mat
             invWarpAffix = '1InverseWarp.nii.gz'
             warpAffix = '1Warp.nii.gz'
@@ -348,7 +348,7 @@ class GroupTractStats:
         warpAffix = group_prefix+'Warp.nii.gz'
         affAffix = group_prefix+'Affine.txt'
 
-        if len(glob(path.join(processed_path,subj_pref+'*'+affAffix))) == 0:
+        if len(glob(path.join(processed_path,subj_pref+affAffix))) == 0:
             # can't find affine.txt, assume it's mat
             invWarpAffix = '1InverseWarp.nii.gz'
             warpAffix = '1Warp.nii.gz'
@@ -387,7 +387,9 @@ class GroupTractStats:
         warpAffix = group_prefix+'Warp.nii.gz'
         affAffix = group_prefix+'Affine.txt'
 
-        if len(glob(path.join(processed_path,subj_pref+'*'+affAffix))) == 0:
+        detect_path = path.join(processed_path,subj_pref+affAffix)
+        print '>>',detect_path
+        if len(glob(detect_path)) == 0:
             # can't find affine.txt, assume it's mat
             invWarpAffix = '1InverseWarp.nii.gz'
             warpAffix = '1Warp.nii.gz'
@@ -437,7 +439,12 @@ class GroupTractStats:
                 dwi_folder = glob(dwi_autodetect_folder)[0]
             else:
                 dwi_folder = ''
-            chdir(path.join(dwi_folder,'nifti'))
+            
+            nifti_path = path.join(dwi_folder,'nifti')
+            if not path.exists(nifti_path):
+                exec_cmd('eddycor.py -s {dwi_autodetect_folder} {subj_path}'.format(**locals()))
+
+            chdir(nifti_path)
             print getcwd()
 
             cmd="fslmaths DWI_CORRECTED.nii.gz -Tmean %s" % (path.join(c.orig_path,subj+'_MDWI'))
@@ -507,7 +514,13 @@ class GroupTractStats:
 
     def seedIndividualTracts(self, labels=[1],recompute=False,overwrite=False, reorganize_paths=False, run_unfiltered=True):
 
-        print '===========================seedIndividualTracts============================'        
+        print '''
+========================================================
+┌─┐┌─┐┌─┐┌┬┐╦┌┐┌┌┬┐┬┬  ┬┬┌┬┐┬ ┬┌─┐┬ ╔╦╗┬─┐┌─┐┌─┐┌┬┐┌─┐
+└─┐├┤ ├┤  ││║│││ │││└┐┌┘│ │││ │├─┤│  ║ ├┬┘├─┤│   │ └─┐
+└─┘└─┘└─┘─┴┘╩┘└┘─┴┘┴ └┘ ┴─┴┘└─┘┴ ┴┴─┘╩ ┴└─┴ ┴└─┘ ┴ └─┘
+========================================================
+        '''      
         c = self.config
         origin=getcwd()
 
@@ -641,19 +654,33 @@ class GroupTractStats:
             print 'copy ROI file to '+subjdir
 
             # copy t1 projected roi files to individual tractography folder    
+
+            # templates = c.template_def
+            # for tname, tfile in templates.iteritems():
+            #     if tname == 'reference':
+            #         # skip the reference anatomy image
+            #         continue
+            #     [TODO] copy template files to DWI space without explicit roi usage
+
+            roi_set = set()
             rois = c.rois_def
             for k, roi in rois.iteritems():
                 if roi.type == 'from_template':
                     roi_file = roi.get_filename(subj)
+                    
+                    if roi_file not in roi_set:
+                        roi_set.add(roi_file)
+                        
+                        print 'copy',roi_file,processed_path,subjdir
+                        shutil.copyfile(path.join(processed_path,roi_file), path.join(subjdir,roi_file))
+                        roi_filebase = roi_file.split('.')[0]
 
-                    shutil.copyfile(path.join(processed_path,roi_file), path.join(subjdir,roi_file))
-                    roi_filebase = roi_file.split('.')[0]
+                        cmd="slicerFileConvert.sh %s %s " % (roi_file, roi_filebase+'.nhdr');
+                        exec_cmd(cmd, display=False)
 
-                    cmd="slicerFileConvert.sh %s %s " % (roi_file, roi_filebase+'.nhdr');
-                    exec_cmd(cmd, display=False)
-
-                    roi_file = roi.get_filename(subj, ref='t1')
-                    shutil.copyfile(path.join(processed_path,roi_file), path.join(subjdir,roi_file))
+                        roi_file = roi.get_filename(subj, ref='t1')
+                        print 'copy',roi_file,processed_path,subjdir
+                        shutil.copyfile(path.join(processed_path,roi_file), path.join(subjdir,roi_file))
 
 
             ############ Pass on methods list and generate tracts
@@ -683,7 +710,18 @@ class GroupTractStats:
 
 
                     print '\n-- PERFORM %s' % method_label
-                    method = TractographyMethod.factory(subj, seed_map, imethod, c)
+                    method = TractographyMethod.factory(subj, seed_map, imethod, c)                       
+
+
+                    start_time = time.time()
+                    fiber_name = method.run(filter=True, recompute=recompute)
+                    stop_time = time.time()
+                    elapsed_time = stop_time - start_time
+
+                    report = '%s,%s,%s,filtered,%.9f' % (subj, method_label, label_str, elapsed_time)
+
+                    with open(TRACT_TIME_LOG, 'a') as fp:
+                        fp.write(report+'\n')                                                
 
                     if run_unfiltered:
                         start_time = time.time()
@@ -694,19 +732,9 @@ class GroupTractStats:
                         report = '%s,%s,%s,unfiltered,%.9f' % (subj, method_label, label_str, elapsed_time)
 
                         with open(TRACT_TIME_LOG, 'a') as fp:
-                            fp.write(report+'\n')                        
+                            fp.write(report+'\n') 
 
 
-                    start_time = time.time()
-                    fiber_name = method.run(filter=True)
-                    stop_time = time.time()
-                    elapsed_time = stop_time - start_time
-
-                    report = '%s,%s,%s,filtered,%.9f' % (subj, method_label, label_str, elapsed_time)
-
-                    with open(TRACT_TIME_LOG, 'a') as fp:
-                        fp.write(report+'\n')                                                
-                
                     if not stream_map.has_key(method_label):
                             stream_map[method_label] = [fiber_name]
                     else:

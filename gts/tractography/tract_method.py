@@ -65,6 +65,13 @@ class TractographyMethod(object):
         l =  self.seed_config['excludes']
         return self.get_info(l)
 
+    def get_named_info(self, label):
+        if not label in self.seed_config:
+            return None
+        l = self.seed_config[label]
+        return self.get_info(l)
+        
+
     def get_unique_name(self):
         method_name = self.method_config['label']
         seed_name = self.seed_config['name']
@@ -114,7 +121,7 @@ class TractographyMethod(object):
             filename = path.join(self.path, i['filename'])
             print filename
             ndata, aff = self.extract_label_from_image(filename, i['label'])
-            if data==None:
+            if data is None:
                 data = ndata
             else:
                 data = np.add(data, ndata)
