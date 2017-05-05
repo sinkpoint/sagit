@@ -35,6 +35,8 @@ from statsmodels.sandbox.stats.multicomp import multipletests
 from scipy import stats
 from gts.gtsconfig import GtsConfig
 
+BOOTSTRAP_NUM = 200
+
 def getNiftiAsScalarField(filename):
     import nibabel as nib
 
@@ -181,7 +183,7 @@ def resample_data(df, num_sample_per_pos = 100):
 
 def position_stats(df, name_mapping=None):
 
-    print '### position stats'
+    # print '### position stats'
     from statsmodels.stats.weightstats import ztest
     from functools32 import partial, wraps
     POS = df.position.unique()
@@ -206,8 +208,8 @@ def position_stats(df, name_mapping=None):
         # print pos
         data = df[df.position==pos]
         data = data.groupby(['sid']).mean()
-        data = resample_data(data, num_sample_per_pos=72)
-        print data
+        data = resample_data(data, num_sample_per_pos=BOOTSTRAP_NUM)
+        # print data
         # print data.group.unique()
         # data = df[(df.group == 0) | (df.group == 3)]
         # print data
@@ -219,7 +221,7 @@ def position_stats(df, name_mapping=None):
 
         mcp = MultiComparison(data.value, data.group.astype(int))
 
-        rtp = mcp.allpairtest(stats_test, method='fdr_bh')
+        rtp = mcp.allpairtest(stats_test, method='bonf')
         mheader = []
         for itest in rtp[2]:
             name1 = itest[0]
@@ -249,16 +251,25 @@ def position_stats(df, name_mapping=None):
 
     flatten = allpvals.values.ravel()
     flatten = flatten * 2
-    mcpres = multipletests(flatten, alpha=0.05, method='fdr_bh')
-    print mcpres
+    mcpres = multipletests(flatten, alpha=0.05, method='bonf')
+    # print mcpres
     corr_pvals = np.array(mcpres[1])
     # print corr_pvals
     corr_pvals = np.reshape(corr_pvals, (len(POS),-1))
 
-    print corr_pvals,corr_pvals.shape,header
-    return pd.DataFrame(data=corr_pvals, columns=header)
+    # print corr_pvals,corr_pvals.shape,header
+    data = pd.DataFrame(data=corr_pvals, columns=header)
+    data = data[data.columns[:3]]
+    return data
 
 def stats_per_group(x):
+    print 'stats-per-group'
+
+    x = x.groupby(['sid']).mean()
+    x = x.value
+
+    print len(x)
+
     res = {'median':[],'qtile':[]}
     medians = np.median(x)
     res['mean'] = np.average(x)
@@ -271,7 +282,10 @@ def stats_per_group(x):
     lower_whisker = x[x>=lower_quartile-1.5*iqr].min()
     res['whisk'] = (lower_whisker, upper_whisker)
     res['err'] = (np.abs(lower_whisker-medians), np.abs(upper_whisker-medians))
-    return res
+
+    res['ci'] = bootstrap.ci(x, n_samples=BOOTSTRAP_NUM)
+
+    return pd.Series(res)
 
 def smooth(X, Y):
     # ####### don't smooth    
@@ -286,19 +300,20 @@ def smooth(X, Y):
 
 def main():
     parser = OptionParser(usage="Usage: %prog [options] <tract.vtp>")
-    parser.add_option("-d", "--dist", dest="dist", default=20, type='float', help="Quickbundle distance threshold")
-    parser.add_option("-n", "--num", dest="num", default=50, type='int', help="Number of subdivisions along centroids")
     parser.add_option("-s", "--scalar", dest="scalar", default="FA", help="Scalar to measure")
-    parser.add_option("--curvepoints", dest="curvepoints_file", help="Define a curve to use as centroid. Control points are defined in a csv file in the same space as the tract points. The curve is the vtk cardinal spline implementation, which is a catmull-rom spline.")
+    parser.add_option("-n", "--num", dest="num", default=50, type='int', help="Number of subdivisions along centroids")
     parser.add_option("-l", "--local", dest="is_local", action="store_true", default=False, help="Measure from Quickbundle assigned streamlines. Default is to measure from all streamlines")
+    parser.add_option("-d", "--dist", dest="dist", default=20, type='float', help="Quickbundle distance threshold")
+    parser.add_option("--curvepoints", dest="curvepoints_file", help="Define a curve to use as centroid. Control points are defined in a csv file in the same space as the tract points. The curve is the vtk cardinal spline implementation, which is a catmull-rom spline.")
+    parser.add_option('--yrange', dest='yrange')
+    parser.add_option('--xrange', dest='xrange')
     parser.add_option('--reverse', dest='is_reverse', action='store_true', default=False, help='Reverse the centroid measure stepping order')
-    parser.add_option('--background', dest='bg_file', help='Background NIFTI image')
     parser.add_option('--pairplot', dest='pairplot',)
     parser.add_option('--noviz',dest='is_viz', action='store_false', default=True)
-    parser.add_option('--xrange', dest='xrange')
-    parser.add_option('--yrange', dest='yrange')
     parser.add_option('--config', dest='config')
+    parser.add_option('--background', dest='bg_file', help='Background NIFTI image')
     parser.add_option('--annot', dest='annot')
+    
     (options, args) = parser.parse_args()
 
     if len(args) == 0:
@@ -576,10 +591,10 @@ def main():
 
         if len(UNIQ_GROUPS) > 1:
             # df = resample_data(df, num_sample_per_pos=120)
-            print df
+            # print df
             pvalsDf = position_stats(df, name_mapping=name_mapping)
             logpvals = np.log(pvalsDf)*-1
-            print logpvals
+            # print logpvals
 
 
             pvals = logpvals.mask(pvalsDf >= 0.05 ) 
@@ -597,26 +612,26 @@ def main():
 
         legend_handles = []
         for gi, GRP in enumerate(UNIQ_GROUPS):
-            print '--------------------',gi,'----------------------'
+            print '-------------------- GROUP ',gi,'----------------------'
             subgrp = df[df['group']==GRP]
             print len(subgrp)
             
+            if options.xrange:
+                x0, x1 = options.xrange.split(',')
+                x0 = int(x0)
+                x1 = int(x1)
+                subgrp = subgrp[(subgrp['position'] >= x0) & (subgrp['position'] < x1)]
+
             posGrp = subgrp.groupby('position', sort=True)
+            
 
-            #cent_stats = posGrp.FA.mean().as_matrix()
-            cent_stats = posGrp.value.apply(lambda x:stats_per_group(x))
-            # cent_std = posGrp.FA.apply(lambda x:np.std(x)).as_matrix()
-            # # bootstrap 68% CI, or 1 standard deviation
-            #cent_ci = posGrp.value.apply(lambda x: stats.norm.interval(0.95,loc=np.median(x),scale=np.std(x))).as_matrix()
+            cent_stats = posGrp.apply(lambda x:stats_per_group(x))
 
-            print cent_stats
             if len(cent_stats) == 0:
                 continue
             
             cent_stats = cent_stats.unstack()
             cent_median_scalar = cent_stats['median'].tolist()
-            # print cent_stats
-            # cent_median_scalar = [ i[2] for i in cent_stats]
 
             x = np.array([i for i in posGrp.groups])
             # print x
@@ -644,8 +659,8 @@ def main():
             # cur_axe.fill_between(x, [s[0] for s in cent_stats['whisk'].tolist()], 
             #     [t[1] for t in cent_stats['whisk'].tolist()], alpha=0.1, color=mcolor)
 
-            qtile_top = np.array([s[0] for s in cent_stats['qtile'].tolist()])
-            qtile_bottom = np.array([t[1] for t in cent_stats['qtile'].tolist()])
+            qtile_top = np.array([s[0] for s in cent_stats['ci'].tolist()])
+            qtile_bottom = np.array([t[1] for t in cent_stats['ci'].tolist()])
 
             x_new, qtop_sm = smooth(x, qtile_top)
             x_new, qbottom_sm = smooth(x, qtile_bottom)
@@ -659,11 +674,7 @@ def main():
             hnd, = cur_axe.plot(x_new, median_sm, c=mcolor)   
             legend_handles.append(hnd) 
 
-            # cur_axe.scatter(x,cent_stats['median'].tolist(), c=mcolor)   
-
-            if options.xrange:
-                plotrange = options.xrange.split(',')
-                cur_axe.set_xlim([int(plotrange[0]), int(plotrange[1])])
+            # cur_axe.scatter(x,cent_stats['median'].tolist(), c=mcolor)
 
             if options.yrange:
                 plotrange = options.yrange.split(',')
@@ -677,12 +688,12 @@ def main():
 
         if annotations:
             for key,val in annotations.iteritems():
-                print key
+                # print key
                 cur_axe.axvspan(val[0],val[1],fill=False, linestyle='dashed')
                 axis_to_data = cur_axe.transAxes + cur_axe.transData.inverted()
                 data_to_axis = axis_to_data.inverted()
                 axpoint = data_to_axis.transform((val[0],0))
-                print axpoint
+                # print axpoint
                 cur_axe.text(axpoint[0], 1.02, key, transform=cur_axe.transAxes)
 
         """
@@ -754,7 +765,9 @@ def main():
             scene.disable_render = False
 
     DATADF.to_csv('_'.join([filebase,SCALAR_NAME,'rawdata.csv']), index=False)
-    plt.savefig('{}.pdf'.format('_'.join([filebase,SCALAR_NAME])), dpi=300)
+    outfile = '_'.join([filebase, SCALAR_NAME])
+    print 'save to {}'.format(outfile)
+    plt.savefig('{}.pdf'.format(outfile), dpi=300)
 
     if options.is_viz:
         plt.show(block=False)

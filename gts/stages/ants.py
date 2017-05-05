@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from gts.gtsutils import exec_cmd
 from os import path
 import os
@@ -10,8 +11,15 @@ def per_subj_ants_dwi_to_t1(self, subject, **kwargs):
         overwrite = kwargs['overwrite']
     except KeyError:
         pass
-
-    print '------------------- DWI To T1 %s -------------------' % subject.name
+    
+    print '''
+    ====================
+    ╔╦╗╦ ╦╦  ┌┬┐┌─┐  ╔╦╗
+     ║║║║║║   │ │ │   ║ 
+    ═╩╝╚╩╝╩   ┴ └─┘   ╩ 
+    ====================
+    {}
+    '''.format(subject.name)
     print kwargs
     os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = str(multiprocessing.cpu_count())
 
@@ -100,6 +108,14 @@ def per_subj_ants_t1_to_template(self, subject, **kwargs):
     except KeyError:
         pass
 
+    print '''
+    ======================================
+    ╔╦╗  ╔╦╗┌─┐  ╔╦╗┌─┐┌┬┐┌─┐┬  ┌─┐┌┬┐┌─┐
+     ║    ║ │ │   ║ ├┤ │││├─┘│  ├─┤ │ ├┤ 
+     ╩    ╩ └─┘   ╩ └─┘┴ ┴┴  ┴─┘┴ ┴ ┴ └─┘
+    ====================================== 
+    {}
+    '''.format(subj)
     print '------------------- T1 To TEMPLATE %s -------------------' % subj
     os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = str(multiprocessing.cpu_count())
 

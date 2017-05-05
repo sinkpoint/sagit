@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import gtsroi
 from builtins import str
 import hjson

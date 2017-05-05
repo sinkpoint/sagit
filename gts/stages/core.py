@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from gts import exec_cmd
 import os
 from glob import glob
@@ -9,7 +11,13 @@ def per_subj_collect_t1_from_dicom(self, subject, *args, **kwargs):
     t1_dicom = c.T1_dicom_path
     t1_search = c.T1_autodetect
 
-    print '------------ collect T1 from dicom --------------'
+    print '''
+    =======================================================
+    ╔═╗┌─┐┬  ┬  ┌─┐┌─┐┌┬┐  ╔╦╗  ╔═╗┬─┐┌─┐┌┬┐  ╔╦╗╦╔═╗╔═╗╔╦╗
+    ║  │ ││  │  ├┤ │   │    ║   ╠╣ ├┬┘│ ││││   ║║║║  ║ ║║║║
+    ╚═╝└─┘┴─┘┴─┘└─┘└─┘ ┴    ╩   ╚  ┴└─└─┘┴ ┴  ═╩╝╩╚═╝╚═╝╩ ╩
+    =======================================================
+    '''
 
     subj = subject.name
     for match in t1_search:

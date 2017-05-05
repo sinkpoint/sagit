@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import shutil
 import os.path as path
 import os
@@ -18,6 +20,14 @@ def per_subject_prepareRoiFiles(self, subject, **kwargs):
     processed_path = c.processed_path
     tractography_path = subject.tractography_path
     subjdir = path.join( tractography_path,subj)
+
+    print '''
+    =============================================
+    ╔═╗┬─┐┌─┐┌─┐┌─┐┬─┐┌─┐  ╦═╗╔═╗╦  ╔═╗┬┬  ┌─┐┌─┐
+    ╠═╝├┬┘├┤ ├─┘├─┤├┬┘├┤   ╠╦╝║ ║║  ╠╣ ││  ├┤ └─┐
+    ╩  ┴└─└─┘┴  ┴ ┴┴└─└─┘  ╩╚═╚═╝╩  ╚  ┴┴─┘└─┘└─┘
+    =============================================
+    '''
 
     root = os.getcwd()
     os.chdir(subjdir)

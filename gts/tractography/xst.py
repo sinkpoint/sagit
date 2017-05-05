@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import slicer
 from gts import exec_cmd
 import os
@@ -10,6 +12,11 @@ class Xst(slicer.Slicer3):
 
     def run(self, filter=True):
         self.goto_working_path()
+        print '''
+        ═╗ ╦╔═╗╔╦╗
+        ╔╩╦╝╚═╗ ║ 
+        ╩ ╚═╚═╝ ╩ 
+        '''
         includes_file, excludes_file, seed_file = self.prep_seed_files()
         seed_info = self.get_seed_info()
         print seed_info

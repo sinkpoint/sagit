@@ -17,6 +17,7 @@ import statsmodels.formula.api as smf
 from statsmodels.stats.multicomp import MultiComparison
 from statsmodels.sandbox.stats.multicomp import multipletests
 from scipy import stats
+import yaml
 
 from fiber_stats import stats_per_group, position_stats
 from gts.gtsconfig import GtsConfig
@@ -98,6 +99,19 @@ def plot(df, options):
     sns.heatmap(meanDF.transpose(), cmap='viridis', ax=cur_axe, yticklabels=group_labels)
     # cur_axe.set_yticks(UNIQ_GROUPS)
 
+    if options.annot:
+        with open(options.annot,'r') as fp:
+            annotations = yaml.load(fp)
+
+        for key,val in annotations.iteritems():
+            print key
+            cur_axe.axvspan(val[0],val[1],fill=False, linestyle='dashed')
+            axis_to_data = cur_axe.transAxes + cur_axe.transData.inverted()
+            data_to_axis = axis_to_data.inverted()
+            axpoint = data_to_axis.transform((val[0],0))
+            print axpoint
+            cur_axe.text(axpoint[0], 1.02, key, transform=cur_axe.transAxes)
+
     if options.title:
         plt.suptitle(options.title)
 
@@ -111,14 +125,16 @@ def plot(df, options):
 
 def main():
     parser = OptionParser(usage="Usage: %prog [options] statsfile")
-    parser.add_option('--reverse', dest='is_reverse', action='store_true', default=False, help='Reverse the centroid measure stepping order')
-    parser.add_option('--noshade', dest='is_shade', action='store_false', default=True)
-    parser.add_option('--xrange', dest='xrange')
-    parser.add_option('--yrange', dest='yrange')
-    parser.add_option('-c','--config', dest='config')
     parser.add_option('-t','--title', dest='title')
     parser.add_option('-o', '--output', dest='output')
+    parser.add_option('-c','--config', dest='config')
+    parser.add_option('--yrange', dest='yrange')
+    parser.add_option('--xrange', dest='xrange')
+    parser.add_option('--reverse', dest='is_reverse', action='store_true', default=False, help='Reverse the centroid measure stepping order')
+    parser.add_option('--noshade', dest='is_shade', action='store_false', default=True)
     parser.add_option('--no-show', action='store_false', dest='is_show', default=True)
+    parser.add_option('--annot', dest='annot')
+
     (options, args) = parser.parse_args()
 
     if len(args) == 0:

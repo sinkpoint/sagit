@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import gts
 from os import path
 import json
@@ -16,6 +18,13 @@ def density_mapping(self, **kwargs):
     if not dry_run:
         self.tracts_to_density(tracts)
 
+    print '''
+    ========================================
+    ╔╦╗┌─┐┌┐┌┌─┐┬┌┬┐┬ ┬  ╔╦╗┌─┐┌─┐┌─┐┬┌┐┌┌─┐
+     ║║├┤ │││└─┐│ │ └┬┘  ║║║├─┤├─┘├─┘│││││ ┬
+    ═╩╝└─┘┘└┘└─┘┴ ┴  ┴   ╩ ╩┴ ┴┴  ┴  ┴┘└┘└─┘
+    ========================================
+    '''
     conj_files = self.tracts_conjunction(tracts, img_type='binary',dry_run=dry_run)
     print conj_files
 

@@ -5,6 +5,12 @@ import os
 from glob import glob
 
 def find_scalar_file(mapname):
+    """
+    Map scalar map based on its basename in the individual tractography folder.
+
+    Args:
+        mapname: The image file basename, exclude the extensions
+    """
     mapfile = glob('{mapname}.nii.gz'.format(**locals()))
     if len(mapfile) == 0:
         mapfile = glob('{mapname}_dwi.nii.gz'.format(**locals()))
@@ -16,9 +22,18 @@ def find_scalar_file(mapname):
 
 
 def per_subj_tract_to_template_space(self, subject, **kwargs):
+    """
+    Per subject function, project vtk/vtp tracts from DWI to template space
+    
+    Args:
+        subject: The current subject object
+        dry_run=False: Mock run only
+    """
+
     dry_run = False
     if 'dry_run' in kwargs:
         dry_run = kwargs['dry_run']
+        
     subj = subject.name
     print '''
 ╔╦╗┬─┐┌─┐┌─┐┌┬┐  ╔╦╗┌─┐  ╔╦╗┌─┐┌┬┐┌─┐┬  ┌─┐┌┬┐┌─┐
@@ -137,17 +152,29 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
 
         exec_cmd(cmd, dryrun=dry_run)
 
-
 def tracts_merge(self, **kwargs):
+    """
+    Merges tracts in template space into Fascicle .tdb file, then export as one .vtp
+
+    Args:
+        dry_run=False: Just do a mock run
+        overwrite=True: Overwrite the existing .tdb file
+    """
+    
     dry_run = False
+    overwrite = True
+
     if 'dry_run' in kwargs:
         dry_run = kwargs['dry_run']
+    if 'overwrite' in kwargs:
+        overwrite = kwargs['overwrite']
+        
     print '''
-===================================
-╔╦╗┬─┐┌─┐┌─┐┌┬┐┌─┐  ╔╦╗┌─┐┬─┐┌─┐┌─┐
- ║ ├┬┘├─┤│   │ └─┐  ║║║├┤ ├┬┘│ ┬├┤ 
- ╩ ┴└─┴ ┴└─┘ ┴ └─┘  ╩ ╩└─┘┴└─└─┘└─┘
-===================================
+    ===================================
+    ╔╦╗┬─┐┌─┐┌─┐┌┬┐┌─┐  ╔╦╗┌─┐┬─┐┌─┐┌─┐
+     ║ ├┬┘├─┤│   │ └─┐  ║║║├┤ ├┬┘│ ┬├┤ 
+     ╩ ┴└─┴ ┴└─┘ ┴ └─┘  ╩ ╩└─┘┴└─└─┘└─┘
+    ===================================
     '''
 
     # tract_path = self.config.tractography_path_full
@@ -166,9 +193,10 @@ def tracts_merge(self, **kwargs):
             tbasename = tfile.split('.')[0]
             merged_file_basename = '_'.join([tbasename,'merged'])
             merged_tdb = merged_file_basename+'.tdb'
-            # if os.path.isfile(merged_tdb):
-            #     print 'remove old %s' % (merged_tdb)
-            #     os.remove(merged_tdb)
+            if os.path.isfile(merged_tdb) and overwrite:
+                print 'remove old %s' % (merged_tdb)
+                os.remove(merged_tdb)
+
             # for idx,[subj,grp] in self.config.subject_df.iterrows():
             for subject in self.config.subjects:
                 subj = subject.name

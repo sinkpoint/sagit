@@ -60,10 +60,10 @@ class Mrtrix(TractographyMethod):
         self.goto_working_path()
 
         print '''
-╔╦╗╦═╗┌┬┐┬─┐┬─┐ ┬
-║║║╠╦╝ │ ├┬┘│┌┴┬┘
-╩ ╩╩╚═ ┴ ┴└─┴┴ └─
-            '''
+        ╔╦╗╦═╗┌┬┐┬─┐┬─┐ ┬
+        ║║║╠╦╝ │ ├┬┘│┌┴┬┘
+        ╩ ╩╩╚═ ┴ ┴└─┴┴ └─
+        '''
 
         if not path.isfile('dwi/CSD8.mif'):
             self.compute_tensors()
