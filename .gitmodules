@@ -1,0 +1,12 @@
+[submodule "libs/neuro-scripts"]
+	path = libs/neuro-scripts
+	url = https://github.com/sinkpoint/neuro-scripts.git
+[submodule "libs/fascicle"]
+	path = libs/fascicle
+	url = https://github.com/sinkpoint/fascicle.git
+[submodule "libs/pynrrd"]
+	path = libs/pynrrd
+	url = https://github.com/sinkpoint/pynrrd.git
+[submodule "libs/hodaie-teem"]
+	path = libs/hodaie-teem
+	url = https://github.com/sinkpoint/hodaie-teem.git
