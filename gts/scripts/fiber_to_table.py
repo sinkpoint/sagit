@@ -20,26 +20,6 @@ from dipy.segment.quickbundles import QuickBundles
 from dipy.tracking import metrics as tm
 from scipy.cluster.vq import kmeans2
 import os.path as path
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
-from statsmodels.stats.multicomp import MultiComparison
-from statsmodels.sandbox.stats.multicomp import multipletests
-
-
-
-def stats_per_group(x):
-    res = {'median':[],'qtile':[],'ci':[]}
-    medians = np.median(x)
-    res['median'] = medians
-    lower_quartile, upper_quartile = np.percentile(x, [25,75])
-    res['qtile'] = (upper_quartile, lower_quartile)
-#    res['ci'] = np.percentile(x, [2.5,97.5])
-    iqr = upper_quartile - lower_quartile
-    upper_whisker = x[x<=upper_quartile+1.5*iqr].max()
-    lower_whisker = x[x>=lower_quartile-1.5*iqr].min()
-    res['whisk'] = (lower_whisker, upper_whisker)
-    res['err'] = (np.abs(lower_whisker-medians), np.abs(upper_whisker-medians))
-    return res
         
 def main():
     parser = OptionParser(usage="Usage: %prog [options] <tract.vtp> <output.csv>")

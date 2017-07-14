@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+
 try:
     from setuptools import setup
 except ImportError:
@@ -27,6 +30,8 @@ config = {
             'sagit_fiber_stats=gts.scripts.fiber_stats:main',
             'sagit_fiber_stats_plot=gts.scripts.fiber_stats_plot:main',
             'sagit_fiber_stats_compare=gts.scripts.fiber_stats_compare:main',
+            'sagit_fiber_stats_gp=gts.scripts.fiber_stats_gp:main',
+            'sagit_fiber_stats_gp_classify=gts.scripts.fiber_stats_gp_classify:main',
             'sagit_nos_score=gts.meas.imagescore:main'
         ],
     },
