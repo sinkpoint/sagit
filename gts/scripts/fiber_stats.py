@@ -310,6 +310,8 @@ def main():
     parser.add_option('--reverse', dest='is_reverse', action='store_true', default=False, help='Reverse the centroid measure stepping order')
     parser.add_option('--pairplot', dest='pairplot',)
     parser.add_option('--noviz',dest='is_viz', action='store_false', default=True)
+    parser.add_option('--hide-centroid', dest='show_centroid',
+                      action='store_false', default=True)
     parser.add_option('--config', dest='config')
     parser.add_option('--background', dest='bg_file', help='Background NIFTI image')
     parser.add_option('--annot', dest='annot')
@@ -704,18 +706,19 @@ def main():
             scene.disable_render = True
             # scene.renderer.render_window.set(alpha_bit_planes=1,multi_samples=0)
             # scene.renderer.set(use_depth_peeling=True,maximum_number_of_peels=4,occlusion_ratio=0.1)
-            ran_colors = np.random.random_integers(255, size=(len(cent),4))
-            ran_colors[:,-1] = 255
+            # ran_colors = np.random.random_integers(255, size=(len(cent),4))
+            # ran_colors[:,-1] = 255
             mypts = mlab.points3d(cent_verts[:,0],cent_verts[:,1],cent_verts[:,2],labels, 
-                opacity=0.1, 
+                opacity=0.3, 
                 scale_mode='none',
-                scale_factor=1,
-                line_width=1,
+                scale_factor=2,
+                line_width=2,
+                colormap='blue-red',
                 mode='point')
 
             # print mypts.module_manager.scalar_lut_manager.lut.table.to_array()
-            mypts.module_manager.scalar_lut_manager.lut.table = ran_colors
-            mypts.module_manager.scalar_lut_manager.lut.number_of_colors = len(ran_colors)
+            # mypts.module_manager.scalar_lut_manager.lut.table = ran_colors
+            # mypts.module_manager.scalar_lut_manager.lut.number_of_colors = len(ran_colors)
 
 
             delta = len(cent) - len(cent_median_scalar)
@@ -748,10 +751,11 @@ def main():
             gsource.shaft_radius=0.2
             gsource.tip_radius=0.3
 
-            tube_plot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, color=cent_color, tube_radius=0.2, opacity=0.25)
-            tube_filter = tube_plot.parent.parent.filter
-            tube_filter.vary_radius = 'vary_radius_by_scalar'
-            tube_filter.radius_factor = 10
+            if options.show_centroid:
+                tube_plot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, color=cent_color, tube_radius=0.2, opacity=0.25)
+                tube_filter = tube_plot.parent.parent.filter
+                tube_filter.vary_radius = 'vary_radius_by_scalar'
+                tube_filter.radius_factor = 10
 
             # plot first and last
             def plot_pos_index(p):
