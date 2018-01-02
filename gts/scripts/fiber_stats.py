@@ -481,6 +481,14 @@ def main():
             for i,c in enumerate(centroids):
                 centroids[i] = c[::-1]
 
+        centroids = np.array(centroids)
+        for cent in centroids:
+            cent_length = 0
+            for i in range(1,len(cent)):
+                dist = np.sqrt( np.sum((cent[i] - cent[i-1])**2) )
+                cent_length += dist
+            print cent_length
+    sys.exit()
 
     # prepare mayavi 3d viz
 
@@ -634,6 +642,7 @@ def main():
             
             cent_stats = cent_stats.unstack()
             cent_median_scalar = cent_stats['median'].tolist()
+            cent_step_scalar = range(len(cent_median_scalar))
 
             x = np.array([i for i in posGrp.groups])
             # print x
@@ -714,7 +723,7 @@ def main():
                 scale_factor=2,
                 line_width=2,
                 colormap='blue-red',
-                mode='point')
+                mode='2dvertex')
 
             # print mypts.module_manager.scalar_lut_manager.lut.table.to_array()
             # mypts.module_manager.scalar_lut_manager.lut.table = ran_colors
@@ -732,7 +741,7 @@ def main():
             arrow_plot = mlab.quiver3d(
                 cent[:,0], cent[:,1], cent[:,2], 
                 uvw[:,0], uvw[:,1], uvw[:,2], 
-                scalars=cent_median_scalar,
+                scalars=cent_step_scalar,
                 scale_factor=1,
                 #color=mcolor,
                 mode='arrow')
@@ -751,11 +760,11 @@ def main():
             gsource.shaft_radius=0.2
             gsource.tip_radius=0.3
 
-            if options.show_centroid:
-                tube_plot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, color=cent_color, tube_radius=0.2, opacity=0.25)
-                tube_filter = tube_plot.parent.parent.filter
-                tube_filter.vary_radius = 'vary_radius_by_scalar'
-                tube_filter.radius_factor = 10
+            # if options.show_centroid:
+            #     tube_plot = mlab.plot3d(cent[:,0], cent[:,1], cent[:,2], cent_median_scalar, color=cent_color, tube_radius=0.2, opacity=0.25)
+            #     tube_filter = tube_plot.parent.parent.filter
+            #     tube_filter.vary_radius = 'vary_radius_by_scalar'
+            #     tube_filter.radius_factor = 10
 
             # plot first and last
             def plot_pos_index(p):

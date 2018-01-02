@@ -85,21 +85,21 @@ def plot(df, options):
         plot each group by their position 
     """
 
-    fig = plt.figure(figsize=(6,20))
+    fig = plt.figure(figsize=(5,15))
     cur_axe = plt.gca()
 
-    plt.xlabel('Group')
-    plt.ylabel('Position')
+    plt.xlabel('Group',size=20)
+    plt.ylabel('Position',size=20)
     ylabels = None
 
     """
         Perform stats
     """   
 
+    # df = df[ df.position > 0 ]
     meanDF = df.groupby(['position', selectCol]
                         ).value.apply(lambda x: np.mean(x))
     meanDF = meanDF.unstack()
-
     print meanDF
     # stdDF = df.groupby(['position','group']).value.apply(lambda x: np.std(x))
     # stdDF = stdDF.unstack()
@@ -115,8 +115,19 @@ def plot(df, options):
         plt.xlabel('Position')
         ylabels = group_labels
         
-    ax = sns.heatmap(meanDF, cmap='viridis', ax=cur_axe,
-                     square=False, cbar_kws={'label': args.scalar})
+    # cbar_kws = {'label': args.scalar}
+    # cbar_kws = {'aspect': 20, 'fraction': 0.1}
+    cbar_kws = {}
+
+    measureDf = meanDF[meanDF.index > 0]
+
+    vmax = measureDf.max().max()
+    vmin = measureDf.min().min()
+
+    print vmin,vmax
+
+    ax = sns.heatmap(meanDF, cmap='viridis', ax=cur_axe, vmin=vmin, vmax=vmax,
+                     square=False, cbar_kws=cbar_kws)
     ax.vlines(range(30), *ax.get_ylim(), color='white')
 
     # cur_axe.set_yticks(UNIQ_GROUPS)
@@ -149,7 +160,7 @@ def plot(df, options):
         ax.invert_yaxis()
 
     if options.title:
-        ax.set_title(options.title)
+        ax.set_title(options.title, size=24)
 
     plt.tight_layout()
 
