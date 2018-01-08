@@ -24,6 +24,9 @@ from gts.gtsconfig import GtsConfig
 
 
 def heat_stats_per_group(x):
+    x = x.groupby(['sid']).mean()
+    x = x.value
+    
     res = {}
     res['mean'] = np.average(x)
     res['stdev'] = np.std(x)
