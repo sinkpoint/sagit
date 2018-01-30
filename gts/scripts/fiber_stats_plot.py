@@ -154,6 +154,8 @@ def plot(df, options):
 
         # ax.spines['left'].set_position(('outward', 50))
     
+    if options.invert_y:
+        ax.invert_yaxis()
     if options.orient == 'H':
         ax.set_yticklabels(ylabels)
     else:
@@ -179,6 +181,7 @@ def main():
     parser.add_argument('-t','--title', dest='title')
     parser.add_argument('-c','--config', dest='config')
     parser.add_argument('--hide', action='store_false', dest='is_show', default=True)
+    parser.add_argument('--invert-y', action='store_true', dest='invert_y', default=False)
     parser.add_argument('--annot', dest='annot')
     parser.add_argument('--scalar', dest='scalar', default='scalar')
     parser.add_argument('--orient', dest='orient', default='V')

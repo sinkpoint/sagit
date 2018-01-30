@@ -488,7 +488,6 @@ def main():
                 dist = np.sqrt( np.sum((cent[i] - cent[i-1])**2) )
                 cent_length += dist
             print cent_length
-    sys.exit()
 
     # prepare mayavi 3d viz
 
