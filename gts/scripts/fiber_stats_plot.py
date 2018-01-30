@@ -67,7 +67,8 @@ def annotate_group(name, vspan, ax=None):
 def plot(df, options):
     
     df['group'] = df['group'].apply(str)
-    df['joint'] = df.group.str.cat(df.side)
+    if 'side' in df:
+        df['joint'] = df.group.str.cat(df.side)
 
     selectCol = options.groupby
 
@@ -139,12 +140,22 @@ def plot(df, options):
         print config['group_labels']
         group_labels = map(lambda x: config['group_labels'][str(x)], UNIQ_GROUPS)
         ax.set_xticklabels(group_labels)
+        # ax.spines['left'].set_position(('outward', 50))
+    
+    if options.invert_y:
+        ax.invert_yaxis()
+
+    if options.orient == 'H':
+        ax.set_yticklabels(ylabels)
+    else:
+        ax.invert_yaxis()
+
 
     if options.annot:
         with open(options.annot,'r') as fp:
             annotations = yaml.load(fp)
 
-
+        print ax.get_ylim()
         for key,val in annotations.iteritems():
             print key,val
             annotate_group(key, val, ax)
@@ -152,14 +163,6 @@ def plot(df, options):
         plt.subplots_adjust(left=0.4)
         ax.yaxis.labelpad = 70
 
-        # ax.spines['left'].set_position(('outward', 50))
-    
-    if options.invert_y:
-        ax.invert_yaxis()
-    if options.orient == 'H':
-        ax.set_yticklabels(ylabels)
-    else:
-        ax.invert_yaxis()
 
     if options.title:
         ax.set_title(options.title, size=24)
@@ -185,7 +188,7 @@ def main():
     parser.add_argument('--annot', dest='annot')
     parser.add_argument('--scalar', dest='scalar', default='scalar')
     parser.add_argument('--orient', dest='orient', default='V')
-    parser.add_argument('--group-by', dest='groupby', default='joint')
+    parser.add_argument('--group-by', dest='groupby', default='group')
 
     args = parser.parse_args()
 
