@@ -105,6 +105,9 @@ class GtsConfig(object):
             self.rois_def = {k:gtsroi.GtsRoi(k, v, global_config=self) for (k,v) in self.rois_def.iteritems()}        
 
     def load_subjects(self, filename):
+        def unpack3(a,b,c,*d):
+            return a,b,c,d
+
         self.subjects = []
 
         if filename.find('.txt') > -1:
@@ -112,7 +115,7 @@ class GtsConfig(object):
                 self.subjects= [ self.subj_to_tuple(l) for l in f ]
         elif filename.find('.csv') > -1:
             self.subject_df = pd.read_csv(filename, skipinitialspace=True)
-            for i, name, grp in self.subject_df.itertuples():
+            for i, name, grp, _ in unpack3(self.subject_df.itertuples()):
                 group = str(grp)
                 print i,name,group
 

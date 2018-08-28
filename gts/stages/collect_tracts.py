@@ -55,7 +55,11 @@ def per_subj_tract_to_template_space(self, subject, **kwargs):
     dwi_t1_arg, r = self.get_ants_t1_to_dwi_transforms(subj, inverse=False, reference='t1')
     t1_avg_arg, ref_avg = self.get_ants_t1_to_avg_transforms(subj, inverse=False, reference='average')
 
-    tparams = ' '.join((t1_avg_arg, dwi_t1_arg))
+    # NOTE: antsApplyTransformToPoints applies transform in the order of comamndline, opposite to its documentation
+    # therefore the correct order is DWI-T1 --> T1-AVG for execution
+    # The commands expects the transforms to be the inverse of the desired direction
+
+    tparams = ' '.join((dwi_t1_arg, t1_avg_arg))
 
     tdb_file = '_'.join([subj,'tracts.tdb'])
 

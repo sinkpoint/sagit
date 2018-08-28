@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
 import seaborn as sns
-from optparse import OptionParser
 import os.path as path
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
@@ -22,6 +21,7 @@ import yaml
 from fiber_stats import stats_per_group, position_stats
 from gts.gtsconfig import GtsConfig
 
+args = None
 
 def heat_stats_per_group(x):
     x = x.groupby(['sid']).mean()
@@ -41,12 +41,42 @@ def qtile_delta(x):
     return res
 
 
-def plot(df, options):
+def annotate_group(name, vspan, ax=None):
+    """Annotates a span of the x-axis"""
+    def annotate(ax, name, left, right, y, pad):
+        arrow = ax.annotate(name,
+                xy=(y, left), xycoords='data',
+                xytext=(y-pad, right), textcoords='data',
+                annotation_clip=False, verticalalignment='top',
+                horizontalalignment='center', linespacing=2.0,
+                arrowprops=dict(arrowstyle='-', shrinkA=0, shrinkB=0,
+                                connectionstyle='angle,angleA=90,angleB=0,rad=5')
+                )
+        return arrow
 
-    UNIQ_GROUPS = df.group.unique()
+    if ax is None:
+        ax = plt.gca()
+        
+    axis_limit = ax.get_xlim()[0]
+    pad = 0.04 * np.ptp(ax.get_ylim())
+    vcenter = np.mean(vspan)
+    left_arrow = annotate(ax, name, vspan[0], vcenter, axis_limit, pad)
+    right_arrow = annotate(ax, name, vspan[1], vcenter, axis_limit, pad)
+    return left_arrow, right_arrow
+
+def plot(df, options):
+    
+    df['group'] = df['group'].apply(str)
+    if 'side' in df:
+        df['joint'] = df.group.str.cat(df.side)
+
+    selectCol = options.groupby
+
+    UNIQ_GROUPS = df[selectCol].unique()
     UNIQ_GROUPS.sort()
 
     sns.set_style("white")
+    sns.set_context("talk")
     grppal = sns.color_palette("Set2", len(UNIQ_GROUPS))
 
     print '# UNIQ GROUPS',UNIQ_GROUPS
@@ -56,97 +86,115 @@ def plot(df, options):
         plot each group by their position 
     """
 
-    fig = plt.figure(figsize=(14,7))
+    fig = plt.figure(figsize=(5,15))
     cur_axe = plt.gca()
 
-    plt.xlabel('Position')
+    plt.xlabel('Group',size=20)
+    plt.ylabel('Position',size=20)
+    ylabels = None
 
     """
         Perform stats
     """   
 
-    meanDF = df.groupby(['position','group']).value.apply(lambda x: np.median(x))
+    # df = df[ df.position > 0 ]
+    meanDF = df.groupby(['position', selectCol]
+                        ).value.apply(lambda x: np.mean(x))
     meanDF = meanDF.unstack()
-
     print meanDF
-    stdDF = df.groupby(['position','group']).value.apply(lambda x: np.std(x))
-    stdDF = stdDF.unstack()
+    # stdDF = df.groupby(['position','group']).value.apply(lambda x: np.std(x))
+    # stdDF = stdDF.unstack()
 
-    qtileDF = df.groupby(['position','group']).value.apply(lambda x: qtile_delta(x))
-    qtileDF = qtileDF.unstack()
+    # qtileDF = df.groupby(['position','group']).value.apply(lambda x: qtile_delta(x))
+    # qtileDF = qtileDF.unstack()
 
-    # construct hsv table
-    HSV = np.zeros(meanDF.shape + (3,), dtype='float')
-    normMean = meanDF / meanDF.max()
-    normStd = 1-(stdDF / stdDF.max())
-    normQtile = 1-(qtileDF / qtileDF.max())
-
-    # print normMean
-    import matplotlib.cm as cm
-    RGB = np.array([ cm.viridis(i)[:3] for i in normMean.values.flatten()])
-    RGB = RGB.reshape(meanDF.values.shape+(3,))
-    HSV = colors.rgb_to_hsv(RGB)
-    if options.is_shade:
-        HSV[...,2] *= np.clip(normQtile, 0.3, 1) # brightness depends on qtile delta
-
-    RGB = colors.hsv_to_rgb(HSV)
-    # cur_axe.imshow(np.transpose(RGB,(1,0,2)),interpolation='nearest',aspect='auto')
 
     group_labels = UNIQ_GROUPS
-    if options.config:
-        config = GtsConfig(options.config, configure=False)   
-        print config.group_labels
-        group_labels = map(lambda x: config.group_labels[str(x)], UNIQ_GROUPS)
-        # cur_axe.set_yticklabels(group_labels)
 
-    sns.heatmap(meanDF.transpose(), cmap='viridis', ax=cur_axe, yticklabels=group_labels)
+    if options.orient == 'H':
+        meanDF = meanDF.transpose()
+        plt.xlabel('Position')
+        ylabels = group_labels
+        
+    # cbar_kws = {'label': args.scalar}
+    # cbar_kws = {'aspect': 20, 'fraction': 0.1}
+    cbar_kws = {}
+
+    measureDf = meanDF[meanDF.index > 0]
+
+    vmax = measureDf.max().max()
+    vmin = measureDf.min().min()
+
+    print vmin,vmax
+
+    ax = sns.heatmap(meanDF, cmap='viridis', ax=cur_axe, vmin=vmin, vmax=vmax,
+                     square=False, cbar_kws=cbar_kws)
+    ax.vlines(range(30), *ax.get_ylim(), color='white')
+
     # cur_axe.set_yticks(UNIQ_GROUPS)
+
+    if options.config:
+        import json
+        with open(options.config, 'r') as fp:
+            config = json.load(fp)
+        print config['group_labels']
+        group_labels = map(lambda x: config['group_labels'][str(x)], UNIQ_GROUPS)
+        ax.set_xticklabels(group_labels)
+        # ax.spines['left'].set_position(('outward', 50))
+    
+    if options.invert_y:
+        ax.invert_yaxis()
+
+    if options.orient == 'H':
+        ax.set_yticklabels(ylabels)
+    else:
+        ax.invert_yaxis()
+
 
     if options.annot:
         with open(options.annot,'r') as fp:
             annotations = yaml.load(fp)
 
+        print ax.get_ylim()
         for key,val in annotations.iteritems():
-            print key
-            cur_axe.axvspan(val[0],val[1],fill=False, linestyle='dashed')
-            axis_to_data = cur_axe.transAxes + cur_axe.transData.inverted()
-            data_to_axis = axis_to_data.inverted()
-            axpoint = data_to_axis.transform((val[0],0))
-            print axpoint
-            cur_axe.text(axpoint[0], 1.02, key, transform=cur_axe.transAxes)
+            print key,val
+            annotate_group(key, val, ax)
+
+        plt.subplots_adjust(left=0.4)
+        ax.yaxis.labelpad = 70
+
 
     if options.title:
-        plt.suptitle(options.title)
+        ax.set_title(options.title, size=24)
 
+    plt.tight_layout()
 
     if options.output:
         plt.savefig(options.output)
 
     if options.is_show:
-        plt.ion()
         plt.show()
 
 def main():
-    parser = OptionParser(usage="Usage: %prog [options] statsfile")
-    parser.add_option('-t','--title', dest='title')
-    parser.add_option('-o', '--output', dest='output')
-    parser.add_option('-c','--config', dest='config')
-    parser.add_option('--yrange', dest='yrange')
-    parser.add_option('--xrange', dest='xrange')
-    parser.add_option('--reverse', dest='is_reverse', action='store_true', default=False, help='Reverse the centroid measure stepping order')
-    parser.add_option('--noshade', dest='is_shade', action='store_false', default=True)
-    parser.add_option('--no-show', action='store_false', dest='is_show', default=True)
-    parser.add_option('--annot', dest='annot')
+    global args
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('input', metavar='Tract')
+    parser.add_argument('output', metavar='Output', nargs='?')
+    parser.add_argument('-t','--title', dest='title')
+    parser.add_argument('-c','--config', dest='config')
+    parser.add_argument('--hide', action='store_false', dest='is_show', default=True)
+    parser.add_argument('--invert-y', action='store_true', dest='invert_y', default=False)
+    parser.add_argument('--annot', dest='annot')
+    parser.add_argument('--scalar', dest='scalar', default='scalar')
+    parser.add_argument('--orient', dest='orient', default='V')
+    parser.add_argument('--group-by', dest='groupby', default='group')
 
-    (options, args) = parser.parse_args()
+    args = parser.parse_args()
 
-    if len(args) == 0:
-        parser.print_help()
-        sys.exit(2)
+    DF = pd.read_csv(args.input)
 
-    DF = pd.read_csv(args[0])
-
-    plot(DF, options)
+    plot(DF, args)
 
 
 if __name__ == '__main__':
