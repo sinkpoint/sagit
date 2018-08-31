@@ -16,13 +16,14 @@ pillow = "*"
 nibabel = "*"
 hjson = "*"
 pyyaml = "*"
-gts = {path = ".", editable = true}
 pynrrd = {git = "https://github.com/sinkpoint/pynrrd.git", ref = "master"}
 future = "*"
 ordered_set = "*"
 nipype = "*"
 scikit-learn = "*"
 "scikits.bootstrap" = "*"
+statsmodels = "*"
+"functools32" = "*"
 
 [requires]
 python_version = "2.7"

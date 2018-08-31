@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
 Created on Fri Mar 21 16:41:51 2014
 
@@ -16,16 +18,21 @@ import yaml
 
 from vtk.util.numpy_support import vtk_to_numpy
 
+
 import matplotlib.colors as colors
 import matplotlib.cm as mcmap
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
 import seaborn as sns
+
+from mayavi import mlab
+
+
 from optparse import OptionParser
 from dipy.segment.quickbundles import QuickBundles
 from dipy.tracking import metrics as tm
-from mayavi import mlab
+
 from scipy.cluster.vq import kmeans2
 import os.path as path
 import statsmodels.api as sm
@@ -34,6 +41,10 @@ from statsmodels.stats.multicomp import MultiComparison
 from statsmodels.sandbox.stats.multicomp import multipletests
 from scipy import stats
 from gts.gtsconfig import GtsConfig
+from scipy.stats import distributions
+from statsmodels.stats.weightstats import ztest
+from functools32 import partial, wraps
+from scipy.interpolate import spline
 
 BOOTSTRAP_NUM = 200
 
@@ -76,7 +87,6 @@ def getNiftiAsScalarField(filename):
     return src, data
 
 def _ttest_finish(df,t):
-    from scipy.stats import distributions
     """Common code between all 3 t-test functions."""
     prob = distributions.t.sf(np.abs(t), df) * 2  # use np.abs to get upper tail
     if t.ndim == 0:
@@ -184,8 +194,6 @@ def resample_data(df, num_sample_per_pos = 100):
 def position_stats(df, name_mapping=None):
 
     # print '### position stats'
-    from statsmodels.stats.weightstats import ztest
-    from functools32 import partial, wraps
     POS = df.position.unique()
     POS.sort()
     model = 'value ~ group'
@@ -293,7 +301,6 @@ def smooth(X, Y):
     """
         Smoothing function 
     """
-    from scipy.interpolate import spline
     X_new = np.linspace(X.min(),X.max(),300)
     smoothed = spline(X,Y.tolist(),X_new)
     return (X_new, smoothed)

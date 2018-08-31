@@ -1,0 +1,4 @@
+*.pyc
+*.Dockerfile
+*.egg-info
+Dockerfile

@@ -2,9 +2,9 @@
 
 
 try:
-    from setuptools import setup
+    from setuptools import setup, find_packages
 except ImportError:
-    from distutils.core import setup
+    from distutils.core import setup, find_packages
 
 #myreqs = parse_requirements('requirements.txt')
 
@@ -16,8 +16,8 @@ config = {
     'author_email': 'qixiang.chen@gmail.com',
     'version': '0.1',
     'install_requires': ['nibabel','numpy', 'scipy'],
-    'packages': ['gts'],
-    'name': 'gts',
+    'packages': find_packages(),
+    'name': 'sagit',
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
