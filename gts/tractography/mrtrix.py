@@ -68,6 +68,11 @@ class Mrtrix(TractographyMethod):
         if not path.isfile('dwi/CSD8.mif'):
             self.compute_tensors()
 
+#pchu:added: go back to the previous path
+        os.chdir(current_path)
+#pchu:end
+            
+            
         exclude_param = ''
         include_param = ''
         mask_param = ''
@@ -108,17 +113,38 @@ class Mrtrix(TractographyMethod):
 
         streamparam += " -seed_image %s " % (seed_file)
 
+#pchu: added change to track command based on mrtrix version
+        from subprocess import Popen, PIPE
+        cmd = 'mrconvert -version | head -n 1'
+        line_mrtrix_version = Popen(cmd,stdout=PIPE, shell=True)
+        (out,err) = line_mrtrix_version.communicate()
+        str1 = "mrconvert ";
+        str2 = "_";
+        mrtrix_version = out[out.index(str1)+len(str1):out.index(str2)]
+
+        print("mrtrix version: "+mrtrix_version+", 1st number: "+mrtrix_version[0])
+        if mrtrix_version[0] == "0":
+            #use tracks2vtk for mrtrix0.2
+            trackConvertCommand="tracks2vtk"
+        else:
+            #use tckconvert for mrtrix3
+            trackConvertCommand="tckconvert"
+#pchu: added change to track command based on mrtrix version
+
+        
         if not filter:
             output_tck = '%s.tck' % fiber_basename
             cmd = 'tckgen  %s  dwi/CSD8.mif  %s' % (streamparam, output_tck)
             exec_cmd(cmd)
-            cmd = 'tracks2vtk %s.tck %s.vtk' % (fiber_basename, fiber_basename)
+            #cmd = 'tracks2vtk %s.tck %s.vtk' % (fiber_basename, fiber_basename)
+            cmd = '%s %s.tck %s.vtk' % (trackConvertCommand, fiber_basename, fiber_basename)
             exec_cmd(cmd)
         else:
             output_tck = '%s_filtered.tck' % fiber_basename
             cmd = 'tckgen  {streamparam} {include_param} {exclude_param} {mask_param} dwi/CSD8.mif {output_tck}'.format(**locals())
             exec_cmd(cmd)
-            cmd = 'tracks2vtk %s_filtered.tck %s_filtered.vtk' % (fiber_basename, fiber_basename)
+            #cmd = 'tracks2vtk %s_filtered.tck %s_filtered.vtk' % (fiber_basename, fiber_basename)
+            cmd = '%s %s_filtered.tck %s_filtered.vtk' % (trackConvertCommand, fiber_basename, fiber_basename)
             exec_cmd(cmd)
 
         # cmd = 'copyTensors.py -t dti.nhdr -f %s.vtk -o %s ' % (fiber_basename, output)
