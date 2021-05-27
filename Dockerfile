@@ -1,19 +1,16 @@
-FROM ubuntu:16.04 AS base
+FROM nvidia/opengl:1.2-glvnd-runtime-ubuntu16.04 AS base
 RUN apt-get update && \
-    apt-get install -y git wget python python-pip cmake-curses-gui
+    apt-get install -y git wget python python-pip cmake-curses-gui mayavi2
 
 RUN wget -O- http://neuro.debian.net/lists/xenial.us-ca.full | tee /etc/apt/sources.list.d/neurodebian.sources.list \
     && apt-key adv --recv-keys --keyserver hkp://pool.sks-keyservers.net:80 0xA5D32F012649A5A9
 
 RUN apt-get update && \
-    apt-get install -y fsl ants dcm2niix mrtrix3 python-tk python-vtk
+    apt-get install -y fsl ants dcm2niix mrtrix3
 
 RUN pip install cython setuptools==44.1.1 decorator==4.3.0 ordered-set==3.1.1 pyyaml
-RUN pip install numpy==1.16.6 scipy==1.2.2 hjson pyparsing future traits==5.2.0 networkx==2.2 scikits.bootstrap
+RUN pip install numpy==1.16.6 scipy==1.2.2 hjson pyparsing future networkx==2.2 scikits.bootstrap
 RUN pip install kiwisolver==1.1.0 matplotlib==2.2.5 pandas==0.24.2 nibabel==2.5.2 dipy==0.12.0 SQLAlchemy==1.3.0 Pillow==6.2.2 nipype==0.11.0 seaborn==0.7.0
-
-# install mayavi2 after the python packages does not result in apt packages error
-RUN apt-get install -y mayavi2
 
 WORKDIR /apps
     

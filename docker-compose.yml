@@ -1,0 +1,23 @@
+version: "3.9"
+services:
+    dev:
+        image: neurosagit:dev
+        runtime: nvidia
+        build: 
+            context: .
+            target: dev 
+            dockerfile: Dockerfile
+        environment:
+            - DISPLAY
+            - NVIDIA_VISIBLE_DEVICES=all
+            - QT_X11_NO_MITSHM=1
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix
+            - .:/code
+            - ../../research/TN_SAGIT:/TN_SAGIT
+            - /media/sinkpoint/970EVO/neuroimage/data/:/data
+            - /media/sinkpoint/970EVO/neuroimage/projects/hcp_test:/project
+        stdin_open: true
+        tty: true
+        entrypoint: /bin/bash            
+
